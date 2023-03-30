@@ -26,6 +26,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import glob
 import numpy as np
 import torch
 from tqdm import tqdm
@@ -143,6 +144,26 @@ def process_batch(detections, labels, iouv):
     return torch.tensor(correct, dtype=torch.bool, device=iouv.device)
 
 
+def get_all_images_from_path(path):
+    f = []  # image files
+    try:
+        for p in path if isinstance(path, list) else [path]:
+            p = Path(p)  # os-agnostic
+            if p.is_dir():  # dir
+                f += glob.glob(str(p / '**' / '*.*'), recursive=True)
+                # f = list(p.rglob('*.*'))  # pathlib
+            elif p.is_file():  # file
+                with open(p) as t:
+                    t = t.read().strip().splitlines()
+                    parent = str(p.parent) + os.sep
+                    f += [x.replace('./', parent, 1) if x.startswith('./') else x for x in t]  # to global path
+            else:
+                raise FileNotFoundError(f'{p} does not exist')
+    except Exception as e:
+        raise Exception(f'Error loading data from {path}: {e}') from e
+
+    return f
+
 @smart_inference_mode()
 def run(
         data,
@@ -216,7 +237,13 @@ def run(
     model.warmup(imgsz=(1 if pt else batch_size, 3, imgsz, imgsz))  # warmup
     pad, rect = (0.0, False) if task == 'speed' else (0.5, pt)  # square inference for benchmarks
     task = task if task in ('val', 'test') else 'val'  # path to val/test images
-    dataloader = create_dataloader(data[task],
+
+    all_images = get_all_images_from_path(data[task])
+
+    # Set the chunk size to 500 TODO
+    chunk_size = 500
+
+    dataloader = create_dataloader(all_images,
                                    imgsz,
                                    batch_size,
                                    stride,
