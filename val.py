@@ -57,7 +57,7 @@ from utils.general import (
     xywh2xyxy,
     xyxy2xywh,
 )
-from utils.metrics import ConfusionMatrix, TaggedConfusionMatrix, ap_per_class, box_iou
+from utils.metrics import ConfusionMatrix, ap_per_class, box_iou
 from utils.plots import output_to_target, plot_images, plot_val_study
 from utils.torch_utils import select_device, smart_inference_mode
 
@@ -162,7 +162,7 @@ def get_all_images_from_path(path):
     except Exception as e:
         raise Exception(f'Error loading data from {path}: {e}') from e
 
-    return f
+    return f, p
 
 @smart_inference_mode()
 def run(
@@ -238,12 +238,13 @@ def run(
     pad, rect = (0.0, False) if task == 'speed' else (0.5, pt)  # square inference for benchmarks
     task = task if task in ('val', 'test') else 'val'  # path to val/test images
 
-    all_images = get_all_images_from_path(data[task])
+    all_images, ugly_p = get_all_images_from_path(data[task])
 
     # Set the chunk size to 500 TODO
     chunk_size = 500
 
     dataloader = create_dataloader(all_images,
+                                   ugly_p,
                                    imgsz,
                                    batch_size,
                                    stride,
@@ -269,8 +270,6 @@ def run(
     pbar = tqdm(dataloader, desc=s, bar_format=TQDM_BAR_FORMAT)  # progress bar
     for batch_i, (im, targets, paths, shapes) in enumerate(pbar):
         callbacks.run('on_val_batch_start')
-        if tagged_data:
-            confusion_matrix = TaggedConfusionMatrix(nc=nc)
         with dt[0]:
             if cuda:
                 im = im.to(device, non_blocking=True)

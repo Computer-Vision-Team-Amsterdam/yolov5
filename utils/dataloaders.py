@@ -441,6 +441,7 @@ class LoadImagesAndLabels(Dataset):
 
     def __init__(self,
                  chunk,
+                 ugly_p,
                  img_size=640,
                  batch_size=16,
                  augment=False,
@@ -462,13 +463,14 @@ class LoadImagesAndLabels(Dataset):
         self.mosaic_border = [-img_size // 2, -img_size // 2]
         self.stride = stride
         self.chunk = chunk
+        self.ugly_p = ugly_p
         self.albumentations = Albumentations(size=img_size) if augment else None
 
         self.im_files = sorted(x.replace('/', os.sep) for x in self.chunk if x.split('.')[-1].lower() in IMG_FORMATS)
 
         # Check cache
         self.label_files = img2label_paths(self.im_files)  # labels
-        cache_path = (p if p.is_file() else Path(self.label_files[0]).parent).with_suffix('.cache')
+        cache_path = (self.ugly_p if self.ugly_p.is_file() else Path(self.label_files[0]).parent).with_suffix('.cache')
         try:
             cache, exists = np.load(cache_path, allow_pickle=True).item(), True  # load dict
             assert cache['version'] == self.cache_version  # matches current version
