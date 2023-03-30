@@ -238,10 +238,9 @@ def run(
 
     all_images, ugly_p = get_all_images_from_path(data[task])
 
-    # Set the chunk size to 500
-    chunk_size = 10
-    print(all_images)
-    LOGGER.warning(f'WARNING ⚠️ chriseh {all_images}')
+    # Set the chunk size, images to load in memory
+    chunk_size = 20
+
     # Iterate through the dataset using a while loop
     idx = 0
     while idx < len(all_images):
