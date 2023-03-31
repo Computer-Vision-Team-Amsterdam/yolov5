@@ -245,7 +245,7 @@ def run(
     # Iterate through the dataset using a while loop
     idx = 0
     while idx < len(all_images):
-        chunk = all_images[idx:idx + chunk_size]
+        chunk = all_images[idx:min(idx+chunk_size, len(all_images))]
         # TODO wordt ook rest mee gepakt?
 
         dataloader = create_dataloader(chunk,
