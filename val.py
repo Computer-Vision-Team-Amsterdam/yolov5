@@ -195,7 +195,8 @@ def run(
         callbacks=Callbacks(),
         compute_loss=None,
         tagged_data=False,
-        production=False):
+        production=False,
+        chunk_size=None):
     # Initialize/load model and set device
 
     device = select_device(device, batch_size=batch_size)
@@ -239,7 +240,7 @@ def run(
     all_images, ugly_p = get_all_images_from_path(data[task])
 
     # Set the chunk size, images to load in memory
-    chunk_size = 20
+    chunk_size = chunk_size if chunk_size is not None else len(all_images)
 
     # Iterate through the dataset using a while loop
     idx = 0
@@ -444,6 +445,7 @@ def parse_opt():
     parser.add_argument('--dnn', action='store_true', help='use OpenCV DNN for ONNX inference')
     parser.add_argument('--tagged-data', action='store_true', help='use tagged validation')
     parser.add_argument('--production', action='store_true', help='ignore code parts for production')
+    parser.add_argument('--chunk-size', type=int, help='define the max images to load in memory')
     opt = parser.parse_args()
     opt.data = check_yaml(opt.data)  # check YAML
     opt.save_json |= opt.data.endswith('coco.yaml')
