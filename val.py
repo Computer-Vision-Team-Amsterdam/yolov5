@@ -26,7 +26,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import glob
 import numpy as np
 import torch
 from tqdm import tqdm
@@ -105,6 +104,15 @@ def save_one_txt(predn, save_conf, shape, file):
         with open(file, 'a') as f:
             f.write(('%g ' * len(line)).rstrip() % line + '\n')
 
+def save_blurred(im0, predn):
+    for *xyxy, conf, cls in predn:
+        x1, y1 = int(xyxy[0].item()), int(xyxy[1].item())
+        x2, y2 = int(xyxy[2].item()), int(xyxy[3].item())
+        area_to_blur = im0[y1:y2, x1:x2]
+        blurred = cv2.GaussianBlur(area_to_blur, (135, 135), 0)
+        im0[y1:y2, x1:x2] = blurred
+    return im0
+
 
 def save_one_json(predn, jdict, path, class_map):
     # Save one JSON result {"image_id": 42, "category_id": 18, "bbox": [258.15, 41.29, 348.26, 243.78], "score": 0.236}
@@ -175,7 +183,7 @@ def run(
         compute_loss=None,
         tagged_data=False,
         production=False,
-        chunk_size=None):
+        save_blurred_image=False):
     # Initialize/load model and set device
 
     device = select_device(device, batch_size=batch_size)
@@ -239,7 +247,7 @@ def run(
     jdict, stats, ap, ap_class = [], [], [], []
     callbacks.run('on_val_start')
     pbar = tqdm(dataloader, desc=s, bar_format=TQDM_BAR_FORMAT)  # progress bar
-    for batch_i, (im, targets, paths, shapes) in enumerate(pbar):
+    for batch_i, (im0, im, targets, paths, shapes) in enumerate(pbar):
         callbacks.run('on_val_batch_start')
         with dt[0]:
             if cuda:
@@ -309,11 +317,19 @@ def run(
             callbacks.run('on_val_image_end', pred, predn, path, names, im[si])
 
         # Plot images
-        if plots and not production:
+        if plots and not production: # TODO and not production:
             plot_images(im, targets, paths, save_dir / f'{path.stem}.jpg', names)  # labels
             plot_images(im, output_to_target(preds), paths, save_dir / f'{path.stem}_pred.jpg', names)  # pred
 
         callbacks.run('on_val_batch_end', batch_i, im, targets, paths, shapes, preds)
+
+        # Blur images needs to be done after the above for loop. The blur we want to do on cpu!
+        if save_blurred_image:
+            im0 = save_blurred(im0, preds)
+            cv2.imwrite(
+                save_dir / f'{path.stem}.jpg',
+                im0,
+            )
 
     # Compute metrics
     if not production:
@@ -409,7 +425,7 @@ def parse_opt():
     parser.add_argument('--dnn', action='store_true', help='use OpenCV DNN for ONNX inference')
     parser.add_argument('--tagged-data', action='store_true', help='use tagged validation')
     parser.add_argument('--production', action='store_true', help='ignore code parts for production')
-    parser.add_argument('--chunk-size', type=int, help='define the max images to load in memory')
+    parser.add_argument('--save_blurred_image', action='store_true', help='save blurred images')
     opt = parser.parse_args()
     opt.data = check_yaml(opt.data)  # check YAML
     opt.save_json |= opt.data.endswith('coco.yaml')
