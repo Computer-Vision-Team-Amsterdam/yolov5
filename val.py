@@ -25,6 +25,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+import cv2
 
 import numpy as np
 import torch
@@ -104,10 +105,11 @@ def save_one_txt(predn, save_conf, shape, file):
         with open(file, 'a') as f:
             f.write(('%g ' * len(line)).rstrip() % line + '\n')
 
-def save_blurred(im0, predn):
-    for *xyxy, conf, cls in predn:
-        x1, y1 = int(xyxy[0].item()), int(xyxy[1].item())
-        x2, y2 = int(xyxy[2].item()), int(xyxy[3].item())
+def save_blurred(im0, preds):
+    print(preds)
+    for *xyxy, conf, cls in preds.tolist():
+        x1, y1 = int(xyxy[0]), int(xyxy[1])
+        x2, y2 = int(xyxy[2]), int(xyxy[3])
         area_to_blur = im0[y1:y2, x1:x2]
         blurred = cv2.GaussianBlur(area_to_blur, (135, 135), 0)
         im0[y1:y2, x1:x2] = blurred
@@ -296,6 +298,7 @@ def run(
             if single_cls:
                 pred[:, 5] = 0
             predn = pred.clone()
+            predntwee = pred.clone()
             scale_boxes(im[si].shape[1:], predn[:, :4], shape, shapes[si][1])  # native-space pred
 
             # Evaluate
@@ -316,6 +319,14 @@ def run(
                 save_one_json(predn, jdict, path, class_map)  # append to COCO-JSON dictionary
             callbacks.run('on_val_image_end', pred, predn, path, names, im[si])
 
+            if save_blurred_image:
+                for *xyxy, conf, cls in predntwee.tolist():
+                    x1, y1 = int(xyxy[0]), int(xyxy[1])
+                    x2, y2 = int(xyxy[2]), int(xyxy[3])
+                    area_to_blur = im0[y1:y2, x1:x2]
+                    blurred = cv2.GaussianBlur(area_to_blur, (135, 135), 0)
+                    im0[y1:y2, x1:x2] = blurred
+
         # Plot images
         if plots and not production: # TODO and not production:
             plot_images(im, targets, paths, save_dir / f'{path.stem}.jpg', names)  # labels
@@ -325,7 +336,6 @@ def run(
 
         # Blur images needs to be done after the above for loop. The blur we want to do on cpu!
         if save_blurred_image:
-            im0 = save_blurred(im0, preds)
             cv2.imwrite(
                 save_dir / f'{path.stem}.jpg',
                 im0,
