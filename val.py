@@ -319,16 +319,18 @@ def run(
                 save_one_json(predn, jdict, path, class_map)  # append to COCO-JSON dictionary
             callbacks.run('on_val_image_end', pred, predn, path, names, im[si])
 
+            predntwee[:, :4] = scale_boxes(im[si].shape[2:], predntwee[:, :4], im0[si].shape).round()
+
             if save_blurred_image:
                 for *xyxy, conf, cls in predntwee.tolist():
                     x1, y1 = int(xyxy[0]), int(xyxy[1])
                     x2, y2 = int(xyxy[2]), int(xyxy[3])
-                    area_to_blur = im0[y1:y2, x1:x2]
+                    area_to_blur = im0[si][y1:y2, x1:x2]
                     blurred = cv2.GaussianBlur(area_to_blur, (135, 135), 0)
-                    im0[y1:y2, x1:x2] = blurred
+                    im0[si][y1:y2, x1:x2] = blurred
 
         # Plot images
-        if plots and not production: # TODO and not production:
+        if plots and not production:
             plot_images(im, targets, paths, save_dir / f'{path.stem}.jpg', names)  # labels
             plot_images(im, output_to_target(preds), paths, save_dir / f'{path.stem}_pred.jpg', names)  # pred
 
