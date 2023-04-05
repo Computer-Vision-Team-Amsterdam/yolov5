@@ -57,7 +57,7 @@ from utils.general import (
     xywh2xyxy,
     xyxy2xywh,
 )
-from utils.metrics import ConfusionMatrix, ap_per_class, box_iou
+from utils.metrics import ConfusionMatrix, TaggedConfusionMatrix, ap_per_class, box_iou
 from utils.plots import output_to_target, plot_images, plot_val_study
 from utils.torch_utils import select_device, smart_inference_mode
 
@@ -242,7 +242,8 @@ def run(
                                    prefix=colorstr(f'{task}: '))[0]
 
     seen = 0
-    confusion_matrix = ConfusionMatrix(nc=nc)
+    if not tagged_data:
+        confusion_matrix = ConfusionMatrix(nc=nc)
     names = model.names if hasattr(model, 'names') else model.module.names  # get class names
     if isinstance(names, (list, tuple)):  # old format
         names = dict(enumerate(names))
@@ -256,6 +257,8 @@ def run(
     pbar = tqdm(dataloader, desc=s, bar_format=TQDM_BAR_FORMAT)  # progress bar
     for batch_i, (im0, im, targets, paths, shapes) in enumerate(pbar):
         callbacks.run('on_val_batch_start')
+        if tagged_data:
+            confusion_matrix = TaggedConfusionMatrix(nc=nc)
         with dt[0]:
             if cuda:
                 im = im.to(device, non_blocking=True)
@@ -273,7 +276,10 @@ def run(
             loss += compute_loss(train_out, targets)[1]  # box, obj, cls
 
         # NMS
-        targets[:, 2:] *= torch.tensor((width, height, width, height), device=device)  # to pixels
+        if tagged_data:
+            targets[:, 2:-1] *= torch.tensor((width, height, width, height), device=device)  # to pixels
+        else:
+            targets[:, 2:] *= torch.tensor((width, height, width, height), device=device)  # to pixels
         lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
         with dt[2]:
             preds = non_max_suppression(preds,
@@ -283,7 +289,6 @@ def run(
                                         multi_label=True,
                                         agnostic=single_cls,
                                         max_det=max_det)
-
 
         # Metrics
         for si, pred in enumerate(preds):
@@ -320,7 +325,15 @@ def run(
 
             # Save/log
             if save_txt:
-                save_one_txt(predn, save_conf, shape, file=save_dir / 'labels' / f'{path.stem}.txt')
+                if tagged_data:
+                    save_one_txt_and_one_json(predn,
+                                              save_conf,
+                                              shape,
+                                              file=save_dir / 'labels' / f'{path.stem}.txt',
+                                              json_file=save_dir / 'labels_tagged' / f'{path.stem}.json',
+                                              confusion_matrix=confusion_matrix)
+                else:
+                    save_one_txt(predn, save_conf, shape, file=save_dir / 'labels' / f'{path.stem}.txt')
             if save_json:
                 save_one_json(predn, jdict, path, class_map)  # append to COCO-JSON dictionary
             callbacks.run('on_val_image_end', pred, predn, path, names, im[si])
