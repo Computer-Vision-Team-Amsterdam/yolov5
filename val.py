@@ -320,7 +320,7 @@ def run(
                 save_one_json(predn, jdict, path, class_map)  # append to COCO-JSON dictionary
             callbacks.run('on_val_image_end', pred, predn, path, names, im[si])
 
-            predntwee[:, :4] = scale_boxes(im.shape[2:], predntwee[:, :4], im0[si].shape).round() # TODO dow we need to do this
+            predntwee[:, :4] = scale_boxes(im.shape[2:], predntwee[:, :4], im0[si].shape).round() # TODO why not im[si].shape[2:]
 
             if save_blurred_image:
                 for *xyxy, conf, cls in predntwee.tolist():
@@ -330,7 +330,7 @@ def run(
                     blurred = cv2.GaussianBlur(area_to_blur, (135, 135), 0)
                     im0[si][y1:y2, x1:x2] = blurred
 
-                # Blur images needs to be done after the above for loop. The blur we want to do on cpu!
+                # TODO Check if it is faster to do it outide the pbar for loop. im0 is loaded in cpu which is good
                 cv2.imwrite(
                     save_dir / f'{path.stem}.jpg',
                     im0[si],
