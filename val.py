@@ -279,6 +279,7 @@ def run(
                                         agnostic=single_cls,
                                         max_det=max_det)
 
+
         # Metrics
         for si, pred in enumerate(preds):
             labels = targets[targets[:, 0] == si, 1:]
@@ -319,7 +320,7 @@ def run(
                 save_one_json(predn, jdict, path, class_map)  # append to COCO-JSON dictionary
             callbacks.run('on_val_image_end', pred, predn, path, names, im[si])
 
-            predntwee[:, :4] = scale_boxes(im[si].shape[2:], predntwee[:, :4], im0[si].shape).round()
+            predntwee[:, :4] = scale_boxes(im.shape[2:], predntwee[:, :4], im0[si].shape).round() # TODO dow we need to do this
 
             if save_blurred_image:
                 for *xyxy, conf, cls in predntwee.tolist():
@@ -329,19 +330,18 @@ def run(
                     blurred = cv2.GaussianBlur(area_to_blur, (135, 135), 0)
                     im0[si][y1:y2, x1:x2] = blurred
 
+                # Blur images needs to be done after the above for loop. The blur we want to do on cpu!
+                cv2.imwrite(
+                    save_dir / f'{path.stem}.jpg',
+                    im0[si],
+                )
+
         # Plot images
         if plots and not production:
             plot_images(im, targets, paths, save_dir / f'{path.stem}.jpg', names)  # labels
             plot_images(im, output_to_target(preds), paths, save_dir / f'{path.stem}_pred.jpg', names)  # pred
 
         callbacks.run('on_val_batch_end', batch_i, im, targets, paths, shapes, preds)
-
-        # Blur images needs to be done after the above for loop. The blur we want to do on cpu!
-        if save_blurred_image:
-            cv2.imwrite(
-                save_dir / f'{path.stem}.jpg',
-                im0,
-            )
 
     # Compute metrics
     if not production:
