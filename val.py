@@ -115,10 +115,11 @@ def save_blurred(im0_si, predn, filepath):
         im0_si[y1:y2, x1:x2] = blurred
 
     # TODO Check if it is faster to do it outide the pbar for loop. im0 is loaded in cpu which is good
-    cv2.imwrite(
+    if not cv2.imwrite(
         filepath,
         im0_si,
-    )
+    ):
+        raise Exception(f"Could not write image {os.path.basename(save_path)}")
 
 
 def save_one_json(predn, jdict, path, class_map):
@@ -258,7 +259,7 @@ def run(
     for batch_i, (im0, im, targets, paths, shapes) in enumerate(pbar):
         callbacks.run('on_val_batch_start')
         if tagged_data:
-            confusion_matrix = TaggedConfusionMatrix(nc=nc)
+            confusion_matrix = TaggedConfusionMatrix(nc=nc) # TODO why in the for loop? Why not at line 247?
         with dt[0]:
             if cuda:
                 im = im.to(device, non_blocking=True)
