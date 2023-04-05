@@ -105,15 +105,20 @@ def save_one_txt(predn, save_conf, shape, file):
         with open(file, 'a') as f:
             f.write(('%g ' * len(line)).rstrip() % line + '\n')
 
-def save_blurred(im0, preds):
-    print(preds)
-    for *xyxy, conf, cls in preds.tolist():
+
+def save_blurred(im0_si, predn, filepath):
+    for *xyxy, conf, cls in predn.tolist():
         x1, y1 = int(xyxy[0]), int(xyxy[1])
         x2, y2 = int(xyxy[2]), int(xyxy[3])
-        area_to_blur = im0[y1:y2, x1:x2]
+        area_to_blur = im0_si[y1:y2, x1:x2]
         blurred = cv2.GaussianBlur(area_to_blur, (135, 135), 0)
-        im0[y1:y2, x1:x2] = blurred
-    return im0
+        im0_si[y1:y2, x1:x2] = blurred
+
+    # TODO Check if it is faster to do it outide the pbar for loop. im0 is loaded in cpu which is good
+    cv2.imwrite(
+        filepath,
+        im0_si,
+    )
 
 
 def save_one_json(predn, jdict, path, class_map):
@@ -320,21 +325,10 @@ def run(
                 save_one_json(predn, jdict, path, class_map)  # append to COCO-JSON dictionary
             callbacks.run('on_val_image_end', pred, predn, path, names, im[si])
 
-            predntwee[:, :4] = scale_boxes(im.shape[2:], predntwee[:, :4], im0[si].shape).round() # TODO why not im[si].shape[2:]
-
             if save_blurred_image:
-                for *xyxy, conf, cls in predntwee.tolist():
-                    x1, y1 = int(xyxy[0]), int(xyxy[1])
-                    x2, y2 = int(xyxy[2]), int(xyxy[3])
-                    area_to_blur = im0[si][y1:y2, x1:x2]
-                    blurred = cv2.GaussianBlur(area_to_blur, (135, 135), 0)
-                    im0[si][y1:y2, x1:x2] = blurred
-
-                # TODO Check if it is faster to do it outide the pbar for loop. im0 is loaded in cpu which is good
-                cv2.imwrite(
-                    save_dir / f'{path.stem}.jpg',
-                    im0[si],
-                )
+                predntwee[:, :4] = scale_boxes(im.shape[2:], predntwee[:, :4],
+                                               im0[si].shape).round()  # TODO why not im[si].shape[2:]
+                save_blurred(im0[si], predntwee, save_dir / f'{path.stem}.jpg')
 
         # Plot images
         if plots and not production:
