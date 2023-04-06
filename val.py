@@ -296,11 +296,17 @@ def run(
             labels = targets[targets[:, 0] == si, 1:]
             nl, npr = labels.shape[0], pred.shape[0]  # number of labels, predictions
             path, shape = Path(paths[si]), shapes[si][0]
-            # Removes the absolute mounted path part that changes at every run.
-            relative_path_in_azure_mounted_folder = Path("/".join(path.parts[path.parts.index("wd") + 2:]))
-            save_path = str(save_dir / relative_path_in_azure_mounted_folder)  # im.jpg
-            txt_path = str(
-                save_dir / 'labels' / relative_path_in_azure_mounted_folder.parent / relative_path_in_azure_mounted_folder.stem)  # im.txt
+            try:
+                # TODO do we want to do this everytime in the for loop??
+                # Removes the absolute mounted path part that changes at every run.
+                relative_path_in_azure_mounted_folder = Path("/".join(path.parts[path.parts.index("wd") + 2:]))
+                save_path = str(save_dir / relative_path_in_azure_mounted_folder)  # im.jpg
+                txt_path = str(
+                    save_dir / 'labels' / relative_path_in_azure_mounted_folder.parent / relative_path_in_azure_mounted_folder.stem)  # im.txt
+            except Exception as e:
+                LOGGER.info("Not able to create mounted folder in Azure, using defaults...")
+                save_path = save_dir
+                txt_path = save_dir / 'labels'
 
             correct = torch.zeros(npr, niou, dtype=torch.bool, device=device)  # init
             seen += 1
@@ -316,7 +322,7 @@ def run(
             if single_cls:
                 pred[:, 5] = 0
             predn = pred.clone()
-            predntwee = pred.clone() # TODO
+            predntwee = pred.clone()  # TODO can we use predn, or are these values changed?
             scale_boxes(im[si].shape[1:], predn[:, :4], shape, shapes[si][1])  # native-space pred
 
             # Evaluate
@@ -337,7 +343,7 @@ def run(
                                               save_conf,
                                               shape,
                                               file=txt_path / f'{path.stem}.txt',
-                                              json_file=save_dir / 'labels_tagged' / f'{path.stem}.json', # TODO
+                                              json_file=save_dir / 'labels_tagged' / f'{path.stem}.json', # TODO, does not work in Azure
                                               confusion_matrix=confusion_matrix)
                 else:
                     save_one_txt(predn, save_conf, shape, file=txt_path / f'{path.stem}.txt')
