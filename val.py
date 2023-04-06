@@ -119,7 +119,7 @@ def save_blurred(im0_si, predn, filepath):
         filepath,
         im0_si,
     ):
-        raise Exception(f"Could not write image {os.path.basename(save_path)}")
+        raise Exception(f"Could not write image {os.path.basename(filepath)}")
 
 
 def save_one_json(predn, jdict, path, class_map):
@@ -296,6 +296,12 @@ def run(
             labels = targets[targets[:, 0] == si, 1:]
             nl, npr = labels.shape[0], pred.shape[0]  # number of labels, predictions
             path, shape = Path(paths[si]), shapes[si][0]
+            # Removes the absolute mounted path part that changes at every run.
+            relative_path_in_azure_mounted_folder = Path("/".join(p.parts[p.parts.index("wd") + 2:]))
+            save_path = str(save_dir / relative_path_in_azure_mounted_folder)  # im.jpg
+            txt_path = str(
+                save_dir / 'labels' / relative_path_in_azure_mounted_folder.parent / relative_path_in_azure_mounted_folder.stem)  # im.txt
+
             correct = torch.zeros(npr, niou, dtype=torch.bool, device=device)  # init
             seen += 1
 
@@ -310,7 +316,7 @@ def run(
             if single_cls:
                 pred[:, 5] = 0
             predn = pred.clone()
-            predntwee = pred.clone()
+            predntwee = pred.clone() # TODO
             scale_boxes(im[si].shape[1:], predn[:, :4], shape, shapes[si][1])  # native-space pred
 
             # Evaluate
@@ -330,11 +336,11 @@ def run(
                     save_one_txt_and_one_json(predn,
                                               save_conf,
                                               shape,
-                                              file=save_dir / 'labels' / f'{path.stem}.txt',
-                                              json_file=save_dir / 'labels_tagged' / f'{path.stem}.json',
+                                              file=txt_path / f'{path.stem}.txt',
+                                              json_file=save_dir / 'labels_tagged' / f'{path.stem}.json', # TODO
                                               confusion_matrix=confusion_matrix)
                 else:
-                    save_one_txt(predn, save_conf, shape, file=save_dir / 'labels' / f'{path.stem}.txt')
+                    save_one_txt(predn, save_conf, shape, file=txt_path / f'{path.stem}.txt')
             if save_json:
                 save_one_json(predn, jdict, path, class_map)  # append to COCO-JSON dictionary
             callbacks.run('on_val_image_end', pred, predn, path, names, im[si])
@@ -342,12 +348,12 @@ def run(
             if save_blurred_image:
                 predntwee[:, :4] = scale_boxes(im.shape[2:], predntwee[:, :4],
                                                im0[si].shape).round()  # TODO why not im[si].shape[2:]
-                save_blurred(im0[si], predntwee, save_dir / f'{path.stem}.jpg')
+                save_blurred(im0[si], predntwee, save_path / f'{path.stem}.jpg')
 
         # Plot images
         if plots and not production:
-            plot_images(im, targets, paths, save_dir / f'{path.stem}.jpg', names)  # labels
-            plot_images(im, output_to_target(preds), paths, save_dir / f'{path.stem}_pred.jpg', names)  # pred
+            plot_images(im, targets, paths, save_path / f'{path.stem}.jpg', names)  # labels
+            plot_images(im, output_to_target(preds), paths, save_path / f'{path.stem}_pred.jpg', names)  # pred
 
         callbacks.run('on_val_batch_end', batch_i, im, targets, paths, shapes, preds)
 
@@ -355,7 +361,7 @@ def run(
     if not production:
         stats = [torch.cat(x, 0).cpu().numpy() for x in zip(*stats)]  # to numpy
         if len(stats) and stats[0].any():
-            tp, fp, p, r, f1, ap, ap_class = ap_per_class(*stats, plot=plots, save_dir=save_dir, names=names)
+            tp, fp, p, r, f1, ap, ap_class = ap_per_class(*stats, plot=plots, save_dir=save_path, names=names)
             ap50, ap = ap[:, 0], ap.mean(1)  # AP@0.5, AP@0.5:0.95
             mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()
         nt = np.bincount(stats[3].astype(int), minlength=nc)  # number of targets per class
@@ -378,14 +384,14 @@ def run(
 
     # Plots
     if plots and not production:
-        confusion_matrix.plot(save_dir=save_dir, names=list(names.values()))
+        confusion_matrix.plot(save_dir=save_path, names=list(names.values()))
         callbacks.run('on_val_end', nt, tp, fp, p, r, f1, ap, ap50, ap_class, confusion_matrix)
 
     # Save JSON
     if save_json and len(jdict):
         w = Path(weights[0] if isinstance(weights, list) else weights).stem if weights is not None else ''  # weights
         anno_json = str(Path('../datasets/coco/annotations/instances_val2017.json'))  # annotations
-        pred_json = str(save_dir / f'{w}_predictions.json')  # predictions
+        pred_json = str(save_path / f'{w}_predictions.json')  # predictions
         LOGGER.info(f'\nEvaluating pycocotools mAP... saving {pred_json}...')
         with open(pred_json, 'w') as f:
             json.dump(jdict, f)
@@ -410,8 +416,8 @@ def run(
 
     # Return results
     model.float()  # for training
-    s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
-    LOGGER.info(f"Results saved to {colorstr('bold', save_dir)}{s}")
+    s = f"\n{len(list(save_path.glob('labels/*.txt')))} labels saved to {save_path / 'labels'}" if save_txt else ''
+    LOGGER.info(f"Results saved to {colorstr('bold', save_path)}{s}")
     maps = np.zeros(nc) + map
     for i, c in enumerate(ap_class):
         maps[c] = ap[i]
