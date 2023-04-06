@@ -304,7 +304,7 @@ def run(
                 txt_path = str(
                     save_dir / 'labels' / relative_path_in_azure_mounted_folder.parent / relative_path_in_azure_mounted_folder.stem)  # im.txt
             except Exception as e:
-                LOGGER.info("Not able to use mounted folder in Azure, using defaults...")
+                # LOGGER.info("Not able to use mounted folder in Azure, using defaults...")
                 save_path = save_dir
                 txt_path = save_dir / 'labels'
 
