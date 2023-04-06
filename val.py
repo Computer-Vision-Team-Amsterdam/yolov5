@@ -297,7 +297,7 @@ def run(
             nl, npr = labels.shape[0], pred.shape[0]  # number of labels, predictions
             path, shape = Path(paths[si]), shapes[si][0]
             # Removes the absolute mounted path part that changes at every run.
-            relative_path_in_azure_mounted_folder = Path("/".join(p.parts[p.parts.index("wd") + 2:]))
+            relative_path_in_azure_mounted_folder = Path("/".join(path.parts[path.parts.index("wd") + 2:]))
             save_path = str(save_dir / relative_path_in_azure_mounted_folder)  # im.jpg
             txt_path = str(
                 save_dir / 'labels' / relative_path_in_azure_mounted_folder.parent / relative_path_in_azure_mounted_folder.stem)  # im.txt
