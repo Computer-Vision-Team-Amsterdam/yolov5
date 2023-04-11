@@ -3,7 +3,7 @@
 Validate a trained YOLOv5 detection model on a detection dataset
 
 Usage:
-    $ python val.py --weights yolov5s.pt --data coco128.yaml --img 640
+    $ python val.py weights/best.pt --data data/pano.yaml --skip_evaluation --save_blurred_image
 
 Usage - formats:
     $ python val.py --weights yolov5s.pt                 # PyTorch
@@ -168,7 +168,7 @@ def run(
         conf_thres=0.001,  # confidence threshold
         iou_thres=0.6,  # NMS IoU threshold
         max_det=300,  # maximum detections per image
-        task='val',  # val, test, speed or study
+        task='val',  # train, val, test, speed or study
         device='',  # cuda device, i.e. 0 or 0,1,2,3 or cpu
         workers=8,  # max dataloader workers (per RANK in DDP mode)
         single_cls=False,  # treat as single-class dataset
@@ -190,30 +190,36 @@ def run(
         callbacks=Callbacks(),
         compute_loss=None,
         tagged_data=False,
-        production=False,
+        skip_evaluation=False,
         save_blurred_image=False):
     # Initialize/load model and set device
 
-    device = select_device(device, batch_size=batch_size)
+    training = model is not None
+    if training:  # called by train.py
+        device, pt, jit, engine = next(model.parameters()).device, True, False, False  # get model device, PyTorch model
+        half &= device.type != 'cpu'  # half precision only supported on CUDA
+        model.half() if half else model.float()
+    else:  # called directly
+        device = select_device(device, batch_size=batch_size)
 
-    # Directories
-    save_dir = increment_path(Path(project) / name, exist_ok=exist_ok)  # increment run
-    (save_dir / 'labels' if save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
+        # Directories
+        save_dir = increment_path(Path(project) / name, exist_ok=exist_ok)  # increment run
+        (save_dir / 'labels' if save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
 
-    model = DetectMultiBackend(weights, device=device, dnn=dnn, data=data, fp16=half)
-    stride, pt, jit, engine = model.stride, model.pt, model.jit, model.engine
-    imgsz = check_img_size(imgsz, s=stride)  # check image size
-    half = model.fp16  # FP16 supported on limited backends with CUDA
-    if engine:
-        batch_size = model.batch_size
-    else:
-        device = model.device
-        if not (pt or jit):
-            batch_size = 1  # export.py models default to batch-size 1
-            LOGGER.info(f'Forcing --batch-size 1 square inference (1,3,{imgsz},{imgsz}) for non-PyTorch models')
+        model = DetectMultiBackend(weights, device=device, dnn=dnn, data=data, fp16=half)
+        stride, pt, jit, engine = model.stride, model.pt, model.jit, model.engine
+        imgsz = check_img_size(imgsz, s=stride)  # check image size
+        half = model.fp16  # FP16 supported on limited backends with CUDA
+        if engine:
+            batch_size = model.batch_size
+        else:
+            device = model.device
+            if not (pt or jit):
+                batch_size = 1  # export.py models default to batch-size 1
+                LOGGER.info(f'Forcing --batch-size 1 square inference (1,3,{imgsz},{imgsz}) for non-PyTorch models')
 
-    # Data
-    data = check_dataset(data)  # check
+        # Data
+        data = check_dataset(data)  # check
 
     # Configure
     model.eval()
@@ -224,23 +230,24 @@ def run(
     niou = iouv.numel()
 
     # Dataloader
-    if pt and not single_cls:  # check --weights are trained on --data
-        ncm = model.model.nc
-        assert ncm == nc, f'{weights} ({ncm} classes) trained on different --data than what you passed ({nc} ' \
-                          f'classes). Pass correct combination of --weights and --data that are trained together.'
-    model.warmup(imgsz=(1 if pt else batch_size, 3, imgsz, imgsz))  # warmup
-    pad, rect = (0.0, False) if task == 'speed' else (0.5, pt)  # square inference for benchmarks
-    task = task if task in ('val', 'test') else 'val'  # path to val/test images
+    if not training:
+        if pt and not single_cls:  # check --weights are trained on --data
+            ncm = model.model.nc
+            assert ncm == nc, f'{weights} ({ncm} classes) trained on different --data than what you passed ({nc} ' \
+                              f'classes). Pass correct combination of --weights and --data that are trained together.'
+        model.warmup(imgsz=(1 if pt else batch_size, 3, imgsz, imgsz))  # warmup
+        pad, rect = (0.0, False) if task == 'speed' else (0.5, pt)  # square inference for benchmarks
+        task = task if task in ('val', 'test') else 'val'  # path to val/test images
 
-    dataloader = create_dataloader(data[task],
-                                   imgsz,
-                                   batch_size,
-                                   stride,
-                                   single_cls,
-                                   pad=pad,
-                                   rect=rect,
-                                   workers=workers,
-                                   prefix=colorstr(f'{task}: '))[0]
+        dataloader = create_dataloader(data[task],
+                                       imgsz,
+                                       batch_size,
+                                       stride,
+                                       single_cls,
+                                       pad=pad,
+                                       rect=rect,
+                                       workers=workers,
+                                       prefix=colorstr(f'{task}: '))[0]
 
     seen = 0
     if not tagged_data:
@@ -259,7 +266,7 @@ def run(
     for batch_i, (im0, im, targets, paths, shapes) in enumerate(pbar):
         callbacks.run('on_val_batch_start')
         if tagged_data:
-            confusion_matrix = TaggedConfusionMatrix(nc=nc) # TODO why in the for loop? Why not at line 247?
+            confusion_matrix = TaggedConfusionMatrix(nc=nc)
         with dt[0]:
             if cuda:
                 im = im.to(device, non_blocking=True)
@@ -294,6 +301,9 @@ def run(
         # Metrics
         for si, pred in enumerate(preds):
             labels = targets[targets[:, 0] == si, 1:]
+            if tagged_data:
+                tagged_labels = targets[:, -1]
+                gt_boxes = targets[:, 2:-1] / torch.tensor((width, height, width, height), device=device)
             nl, npr = labels.shape[0], pred.shape[0]  # number of labels, predictions
             path, shape = Path(paths[si]), shapes[si][0]
             try:
@@ -312,7 +322,7 @@ def run(
             seen += 1
 
             if npr == 0:
-                if nl and not production:
+                if nl and not skip_evaluation:
                     stats.append((correct, *torch.zeros((2, 0), device=device), labels[:, 0]))
                     if plots:
                         confusion_matrix.process_batch(detections=None, labels=labels[:, 0])
@@ -326,14 +336,17 @@ def run(
             scale_boxes(im[si].shape[1:], predn[:, :4], shape, shapes[si][1])  # native-space pred
 
             # Evaluate
-            if not production:
+            if not skip_evaluation:
                 if nl:
                     tbox = xywh2xyxy(labels[:, 1:5])  # target boxes
                     scale_boxes(im[si].shape[1:], tbox, shape, shapes[si][1])  # native-space labels
                     labelsn = torch.cat((labels[:, 0:1], tbox), 1)  # native-space labels
                     correct = process_batch(predn, labelsn, iouv)
                     if plots:
-                        confusion_matrix.process_batch(predn, labelsn)
+                        if tagged_data:
+                            confusion_matrix.process_batch(predn, labelsn, gt_boxes, tagged_labels)
+                        else:
+                            confusion_matrix.process_batch(predn, labelsn)
                 stats.append((correct, pred[:, 4], pred[:, 5], labels[:, 0]))  # (correct, conf, pcls, tcls)
 
             # Save/log
@@ -357,14 +370,14 @@ def run(
                 save_blurred(im0[si], predntwee, save_path / f'{path.stem}.jpg')
 
         # Plot images
-        if plots and not production:
+        if plots and not skip_evaluation:
             plot_images(im, targets, paths, save_path / f'{path.stem}.jpg', names)  # labels
             plot_images(im, output_to_target(preds), paths, save_path / f'{path.stem}_pred.jpg', names)  # pred
 
         callbacks.run('on_val_batch_end', batch_i, im, targets, paths, shapes, preds)
 
     # Compute metrics
-    if not production:
+    if not skip_evaluation:
         stats = [torch.cat(x, 0).cpu().numpy() for x in zip(*stats)]  # to numpy
         if len(stats) and stats[0].any():
             tp, fp, p, r, f1, ap, ap_class = ap_per_class(*stats, plot=plots, save_dir=save_path, names=names)
@@ -389,7 +402,7 @@ def run(
     LOGGER.info(f'Speed: %.1fms pre-process, %.1fms inference, %.1fms NMS per image at shape {shape}' % t)
 
     # Plots
-    if plots and not production:
+    if plots and not skip_evaluation:
         confusion_matrix.plot(save_dir=save_path, names=list(names.values()))
         callbacks.run('on_val_end', nt, tp, fp, p, r, f1, ap, ap50, ap_class, confusion_matrix)
 
@@ -402,7 +415,7 @@ def run(
         with open(pred_json, 'w') as f:
             json.dump(jdict, f)
 
-        if not production:
+        if not skip_evaluation:
             try:  # https://github.com/cocodataset/cocoapi/blob/master/PythonAPI/pycocoEvalDemo.ipynb
                 check_requirements('pycocotools>=2.0.6')
                 from pycocotools.coco import COCO
@@ -440,7 +453,7 @@ def parse_opt():
     parser.add_argument('--conf-thres', type=float, default=0.001, help='confidence threshold')
     parser.add_argument('--iou-thres', type=float, default=0.6, help='NMS IoU threshold')
     parser.add_argument('--max-det', type=int, default=300, help='maximum detections per image')
-    parser.add_argument('--task', default='val', help='val, test, speed or study')
+    parser.add_argument('--task', default='val', help='train, val, test, speed or study')
     parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--workers', type=int, default=8, help='max dataloader workers (per RANK in DDP mode)')
     parser.add_argument('--single-cls', action='store_true', help='treat as single-class dataset')
@@ -456,7 +469,7 @@ def parse_opt():
     parser.add_argument('--half', action='store_true', help='use FP16 half-precision inference')
     parser.add_argument('--dnn', action='store_true', help='use OpenCV DNN for ONNX inference')
     parser.add_argument('--tagged-data', action='store_true', help='use tagged validation')
-    parser.add_argument('--production', action='store_true', help='ignore code parts for production')
+    parser.add_argument('--skip-evaluation', action='store_true', help='ignore code parts for production')
     parser.add_argument('--save_blurred_image', action='store_true', help='save blurred images')
     opt = parser.parse_args()
     opt.data = check_yaml(opt.data)  # check YAML
@@ -469,7 +482,7 @@ def parse_opt():
 def main(opt):
     check_requirements(exclude=('tensorboard', 'thop'))
 
-    if opt.task in ('val', 'test'):  # run normally
+    if opt.task in ('train', 'val', 'test'):  # run normally
         if opt.conf_thres > 0.001:  # https://github.com/ultralytics/yolov5/issues/1466
             LOGGER.info(f'WARNING ⚠️ confidence threshold {opt.conf_thres} > 0.001 produces invalid results') # TODO
         if opt.save_hybrid:
@@ -484,7 +497,7 @@ def main(opt):
             opt.conf_thres, opt.iou_thres, opt.save_json = 0.25, 0.45, False
             for opt.weights in weights:
                 run(**vars(opt), plots=False)
-        elif opt.production:
+        elif opt.skip_evaluation:
             opt.conf_thres, opt.iou_thres = 0.25, 0.6
 
         elif opt.task == 'study':  # speed vs mAP benchmarks
@@ -500,7 +513,7 @@ def main(opt):
             subprocess.run(['zip', '-r', 'study.zip', 'study_*.txt'])
             plot_val_study(x=x)  # plot
         else:
-            raise NotImplementedError(f'--task {opt.task} not in ("val", "test", "speed", "study")')
+            raise NotImplementedError(f'--task {opt.task} not in ("train", "val", "test", "speed", "study")')
 
 
 if __name__ == '__main__':
