@@ -205,7 +205,9 @@ def run(
         # Directories
         save_dir = increment_path(Path(project) / name, exist_ok=exist_ok)  # increment run
         (save_dir / 'labels' if save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
-
+        if tagged_data:
+            (save_dir / 'labels_tagged' if save_txt else save_dir).mkdir(parents=True, exist_ok=True)
+            # Load model
         model = DetectMultiBackend(weights, device=device, dnn=dnn, data=data, fp16=half)
         stride, pt, jit, engine = model.stride, model.pt, model.jit, model.engine
         imgsz = check_img_size(imgsz, s=stride)  # check image size
@@ -237,7 +239,7 @@ def run(
                               f'classes). Pass correct combination of --weights and --data that are trained together.'
         model.warmup(imgsz=(1 if pt else batch_size, 3, imgsz, imgsz))  # warmup
         pad, rect = (0.0, False) if task == 'speed' else (0.5, pt)  # square inference for benchmarks
-        task = task if task in ('val', 'test') else 'val'  # path to val/test images
+        task = task if task in ('train', 'val', 'test') else 'val'  # path to val/test images
 
         dataloader = create_dataloader(data[task],
                                        imgsz,
@@ -398,8 +400,9 @@ def run(
 
     # Print speeds
     t = tuple(x.t / seen * 1E3 for x in dt)  # speeds per image
-    shape = (batch_size, 3, imgsz, imgsz)
-    LOGGER.info(f'Speed: %.1fms pre-process, %.1fms inference, %.1fms NMS per image at shape {shape}' % t)
+    if not training:
+        shape = (batch_size, 3, imgsz, imgsz)
+        LOGGER.info(f'Speed: %.1fms pre-process, %.1fms inference, %.1fms NMS per image at shape {shape}' % t)
 
     # Plots
     if plots and not skip_evaluation:
@@ -435,8 +438,9 @@ def run(
 
     # Return results
     model.float()  # for training
-    s = f"\n{len(list(save_path.glob('labels/*.txt')))} labels saved to {save_path / 'labels'}" if save_txt else ''
-    LOGGER.info(f"Results saved to {colorstr('bold', save_path)}{s}")
+    if not training:
+        s = f"\n{len(list(save_path.glob('labels/*.txt')))} labels saved to {save_path / 'labels'}" if save_txt else ''
+        LOGGER.info(f"Results saved to {colorstr('bold', save_path)}{s}")
     maps = np.zeros(nc) + map
     for i, c in enumerate(ap_class):
         maps[c] = ap[i]
