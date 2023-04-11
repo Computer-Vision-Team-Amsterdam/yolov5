@@ -334,7 +334,7 @@ def run(
             if single_cls:
                 pred[:, 5] = 0
             predn = pred.clone()
-            predntwee = pred.clone()  # TODO can we use predn, or are these values changed?
+            pred_clone = pred.clone()  # TODO can we use predn, or are these values changed?
             scale_boxes(im[si].shape[1:], predn[:, :4], shape, shapes[si][1])  # native-space pred
 
             # Evaluate
@@ -367,9 +367,9 @@ def run(
             callbacks.run('on_val_image_end', pred, predn, path, names, im[si])
 
             if save_blurred_image:
-                predntwee[:, :4] = scale_boxes(im.shape[2:], predntwee[:, :4],
+                pred_clone[:, :4] = scale_boxes(im.shape[2:], pred_clone[:, :4],
                                                im0[si].shape).round()  # TODO why not im[si].shape[2:]
-                save_blurred(im0[si], predntwee, save_path / f'{path.stem}.jpg')
+                save_blurred(im0[si], pred_clone, save_path / f'{path.stem}.jpg')
 
         # Plot images
         if plots and not skip_evaluation:
