@@ -37,6 +37,7 @@ if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))  # add ROOT to PATH
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 
+import time
 from models.common import DetectMultiBackend
 from utils.callbacks import Callbacks
 from utils.dataloaders import create_dataloader
@@ -231,6 +232,9 @@ def run(
     iouv = torch.linspace(0.5, 0.95, 10, device=device)  # iou vector for mAP@0.5:0.95
     niou = iouv.numel()
 
+    start = time.time()
+    end = time.time()
+
     # Dataloader
     if not training:
         if pt and not single_cls:  # check --weights are trained on --data
@@ -250,6 +254,7 @@ def run(
                                        rect=rect,
                                        workers=workers,
                                        prefix=colorstr(f'{task}: '))[0]
+    print(f"Dataloader took {end - start} seconds.")
 
     seen = 0
     if not tagged_data:
@@ -444,6 +449,8 @@ def run(
     maps = np.zeros(nc) + map
     for i, c in enumerate(ap_class):
         maps[c] = ap[i]
+
+    print(f"Validation took {end - start} seconds.")
 
     return (mp, mr, map50, map, []), maps, t
 
