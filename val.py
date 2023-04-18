@@ -107,7 +107,7 @@ def save_one_txt(predn, save_conf, shape, file):
             f.write(('%g ' * len(line)).rstrip() % line + '\n')
 
 
-def save_blurred(im0_si, predn, filepath):
+def save_blurred(im0_si, predn, save_path):
     for *xyxy, conf, cls in predn.tolist():
         x1, y1 = int(xyxy[0]), int(xyxy[1])
         x2, y2 = int(xyxy[2]), int(xyxy[3])
@@ -115,12 +115,14 @@ def save_blurred(im0_si, predn, filepath):
         blurred = cv2.GaussianBlur(area_to_blur, (135, 135), 0)
         im0_si[y1:y2, x1:x2] = blurred
 
+    print(save_path)
+    print("test")
     # TODO Check if it is faster to do it outide the pbar for loop. im0 is loaded in cpu which is good
     if not cv2.imwrite(
-        filepath,
+        save_path,
         im0_si,
     ):
-        raise Exception(f"Could not write image {os.path.basename(filepath)}")
+        raise Exception(f"Could not write image {os.path.basename(save_path)}")
 
 
 def save_one_json(predn, jdict, path, class_map):
@@ -191,8 +193,8 @@ def run(
         callbacks=Callbacks(),
         compute_loss=None,
         tagged_data=False,
-        skip_evaluation=False,
-        save_blurred_image=False):
+        skip_evaluation=True,
+        save_blurred_image=True):
     # Initialize/load model and set device
 
     training = model is not None
@@ -321,9 +323,9 @@ def run(
                 txt_path = str(
                     save_dir / 'labels' / relative_path_in_azure_mounted_folder.parent / relative_path_in_azure_mounted_folder.stem)  # im.txt
             except Exception as e:
-                # LOGGER.info("Not able to use mounted folder in Azure, using defaults...")
+                LOGGER.info("Not able to use mounted folder in Azure, using defaults...")
                 save_path = save_dir
-                txt_path = save_dir / 'labels'
+                txt_path = str(save_dir / 'labels')
 
             correct = torch.zeros(npr, niou, dtype=torch.bool, device=device)  # init
             seen += 1
@@ -374,12 +376,14 @@ def run(
             if save_blurred_image:
                 pred_clone[:, :4] = scale_boxes(im.shape[2:], pred_clone[:, :4],
                                                im0[si].shape).round()  # TODO why not im[si].shape[2:]
-                save_blurred(im0[si], pred_clone, save_path / f'{path.stem}.jpg')
+                #print(save_path)
+                save_blurred(im0[si], pred_clone, save_path)
 
         # Plot images
         if plots and not skip_evaluation:
-            plot_images(im, targets, paths, save_path / f'{path.stem}.jpg', names)  # labels
-            plot_images(im, output_to_target(preds), paths, save_path / f'{path.stem}_pred.jpg', names)  # pred
+            plot_images(im, targets, paths, save_path, names)  # labels
+            # save_path / f'{path.stem}_pred.jpg'
+            #plot_images(im, output_to_target(preds), paths, save_path, names)  # pred
 
         callbacks.run('on_val_batch_end', batch_i, im, targets, paths, shapes, preds)
 
@@ -494,6 +498,8 @@ def main(opt):
     check_requirements(exclude=('tensorboard', 'thop'))
 
     if opt.task in ('train', 'val', 'test'):  # run normally
+        if opt.skip_evaluation:
+            opt.conf_thres, opt.iou_thres = 0.25, 0.6
         if opt.conf_thres > 0.001:  # https://github.com/ultralytics/yolov5/issues/1466
             LOGGER.info(f'WARNING ⚠️ confidence threshold {opt.conf_thres} > 0.001 produces invalid results') # TODO
         if opt.save_hybrid:
@@ -508,8 +514,6 @@ def main(opt):
             opt.conf_thres, opt.iou_thres, opt.save_json = 0.25, 0.45, False
             for opt.weights in weights:
                 run(**vars(opt), plots=False)
-        elif opt.skip_evaluation:
-            opt.conf_thres, opt.iou_thres = 0.25, 0.6
 
         elif opt.task == 'study':  # speed vs mAP benchmarks
             # python val.py --task study --data coco.yaml --iou 0.7 --weights yolov5n.pt yolov5s.pt...
