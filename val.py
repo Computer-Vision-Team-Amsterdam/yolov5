@@ -111,6 +111,10 @@ def save_one_csv(predn, shape, filename, csv_file):
     gn = torch.tensor(shape)[[1, 0, 1, 0]]  # normalization gain whwh
     for *xyxy, conf, cls in predn.tolist():
         xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
+
+        # Round the values in xywh to 3 decimal places
+        xywh = [round(x, 3) for x in xywh]
+
         line = (filename, *xywh, cls)  # label format
         with open(csv_file, 'a') as f:
             writer = csv.writer(f)
