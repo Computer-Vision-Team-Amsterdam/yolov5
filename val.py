@@ -362,7 +362,7 @@ def run(
                 else:
                     save_one_txt(predn, save_conf, shape, file=save_dir / 'labels' / f'{path.stem}.txt')
             if save_csv:
-                save_one_csv(predn, shape, path.stem, csv_file=save_dir / 'metadata.csv')
+                save_one_csv(predn, shape, path.stem, csv_file=save_dir / f'metadata_{device.type}.csv')
             if save_json:
                 save_one_json(predn, jdict, path, class_map)  # append to COCO-JSON dictionary
             callbacks.run('on_val_image_end', pred, predn, path, names, im[si])
