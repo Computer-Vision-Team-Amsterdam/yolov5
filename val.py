@@ -106,18 +106,18 @@ def save_one_txt(predn, save_conf, shape, file):
             f.write(('%g ' * len(line)).rstrip() % line + '\n')
 
 
-def save_one_csv(predn, shape, id, filename, csv_file):
+def save_one_csv(predn, shape, filename, csv_file):
     # Save one txt result
     gn = torch.tensor(shape)[[1, 0, 1, 0]]  # normalization gain whwh
     for *xyxy, conf, cls in predn.tolist():
         xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
-        line = (id, filename, *xywh, cls)  # label format
+        line = (filename, *xywh, cls)  # label format
         with open(csv_file, 'a') as f:
             writer = csv.writer(f)
 
             # Write header row if file is empty
             if f.tell() == 0:
-                writer.writerow(['id', 'filename', 'x', 'y', 'w', 'h', 'class'])
+                writer.writerow(['filename', 'x', 'y', 'w', 'h', 'class'])
 
             writer.writerow(line)
 
@@ -265,7 +265,6 @@ def run(
     jdict, stats, ap, ap_class = [], [], [], []
     callbacks.run('on_val_start')
     pbar = tqdm(dataloader, desc=s, bar_format=TQDM_BAR_FORMAT)  # progress bar
-    id_count = 1
     for batch_i, (im0, im, targets, paths, shapes) in enumerate(pbar):
 
         callbacks.run('on_val_batch_start')
@@ -310,7 +309,6 @@ def run(
                 gt_boxes = targets[:, 2:-1] / torch.tensor((width, height, width, height), device=device)
             nl, npr = labels.shape[0], pred.shape[0]  # number of labels, predictions
             path, shape = Path(paths[si]), shapes[si][0]
-            pano_id = path.stem
             correct = torch.zeros(npr, niou, dtype=torch.bool, device=device)  # init
             seen += 1
 
@@ -360,8 +358,7 @@ def run(
                 else:
                     save_one_txt(predn, save_conf, shape, file=save_dir / 'labels' / f'{path.stem}.txt')
             if save_csv:
-                save_one_csv(predn, shape, id_count, path.stem, csv_file=save_dir / f'{path.stem}.txt')
-                id_count += 1
+                save_one_csv(predn, shape, path.stem, csv_file=save_dir / 'metadata.csv')
             if save_json:
                 save_one_json(predn, jdict, path, class_map)  # append to COCO-JSON dictionary
             callbacks.run('on_val_image_end', pred, predn, path, names, im[si])
