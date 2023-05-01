@@ -25,7 +25,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-
+import csv
 import numpy as np
 import torch
 from tqdm import tqdm
@@ -106,6 +106,22 @@ def save_one_txt(predn, save_conf, shape, file):
             f.write(('%g ' * len(line)).rstrip() % line + '\n')
 
 
+def save_one_csv(predn, shape, id, file):
+    # Save one txt result
+    gn = torch.tensor(shape)[[1, 0, 1, 0]]  # normalization gain whwh
+    for *xyxy, conf, cls in predn.tolist():
+        xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
+        line = (id, file, *xywh, cls)  # label format
+        with open(file, 'a') as f:
+            writer = csv.writer(f)
+
+            # Write header row if file is empty
+            if f.tell() == 0:
+                writer.writerow(['ID', 'Filename', 'X1', 'Y1', 'X2', 'Y2', 'Class'])
+
+            writer.writerow(line)
+
+
 def save_one_json(predn, jdict, path, class_map):
     # Save one JSON result {"image_id": 42, "category_id": 18, "bbox": [258.15, 41.29, 348.26, 243.78], "score": 0.236}
     image_id = int(path.stem) if path.stem.isnumeric() else path.stem
@@ -176,7 +192,8 @@ def run(
         compute_loss=None,
         tagged_data=False,
         skip_evaluation=False,
-        save_blurred_image=False):
+        save_blurred_image=False,
+        save_csv=False):
     # Initialize/load model and set device
     training = model is not None
     if training:  # called by train.py
@@ -248,6 +265,7 @@ def run(
     jdict, stats, ap, ap_class = [], [], [], []
     callbacks.run('on_val_start')
     pbar = tqdm(dataloader, desc=s, bar_format=TQDM_BAR_FORMAT)  # progress bar
+    id_count = 1
     for batch_i, (im0, im, targets, paths, shapes) in enumerate(pbar):
 
         callbacks.run('on_val_batch_start')
@@ -340,6 +358,9 @@ def run(
                                               confusion_matrix=confusion_matrix)
                 else:
                     save_one_txt(predn, save_conf, shape, file=save_dir / 'labels' / f'{path.stem}.txt')
+            if save_csv:
+                save_one_csv(predn, shape, id_count, file=save_dir / 'labels' / f'{path.stem}.txt')
+                id_count += 1
             if save_json:
                 save_one_json(predn, jdict, path, class_map)  # append to COCO-JSON dictionary
             callbacks.run('on_val_image_end', pred, predn, path, names, im[si])
@@ -469,7 +490,8 @@ def parse_opt():
     parser.add_argument('--dnn', action='store_true', help='use OpenCV DNN for ONNX inference')
     parser.add_argument('--tagged-data', action='store_true', help='use tagged validation')
     parser.add_argument('--skip-evaluation', action='store_true', help='ignore code parts for production')
-    parser.add_argument('--save_blurred_image', action='store_true', help='save blurred images')
+    parser.add_argument('--save-blurred-image', action='store_true', help='save blurred images')
+    parser.add_argument('--save-csv', action='store_true', help='save metadata in csv file')
     opt = parser.parse_args()
     opt.data = check_yaml(opt.data)  # check YAML
     opt.save_json |= opt.data.endswith('coco.yaml')
