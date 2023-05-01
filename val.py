@@ -106,18 +106,18 @@ def save_one_txt(predn, save_conf, shape, file):
             f.write(('%g ' * len(line)).rstrip() % line + '\n')
 
 
-def save_one_csv(predn, shape, id, file):
+def save_one_csv(predn, shape, id, filename, csv_file):
     # Save one txt result
     gn = torch.tensor(shape)[[1, 0, 1, 0]]  # normalization gain whwh
     for *xyxy, conf, cls in predn.tolist():
         xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
-        line = (id, file, *xywh, cls)  # label format
-        with open(file, 'a') as f:
+        line = (id, filename, *xywh, cls)  # label format
+        with open(csv_file, 'a') as f:
             writer = csv.writer(f)
 
             # Write header row if file is empty
             if f.tell() == 0:
-                writer.writerow(['ID', 'Filename', 'X1', 'Y1', 'X2', 'Y2', 'Class'])
+                writer.writerow(['id', 'filename', 'x', 'y', 'w', 'h', 'class'])
 
             writer.writerow(line)
 
@@ -310,6 +310,7 @@ def run(
                 gt_boxes = targets[:, 2:-1] / torch.tensor((width, height, width, height), device=device)
             nl, npr = labels.shape[0], pred.shape[0]  # number of labels, predictions
             path, shape = Path(paths[si]), shapes[si][0]
+            pano_id = path.stem
             correct = torch.zeros(npr, niou, dtype=torch.bool, device=device)  # init
             seen += 1
 
@@ -359,7 +360,7 @@ def run(
                 else:
                     save_one_txt(predn, save_conf, shape, file=save_dir / 'labels' / f'{path.stem}.txt')
             if save_csv:
-                save_one_csv(predn, shape, id_count, file=save_dir / 'labels' / f'{path.stem}.txt')
+                save_one_csv(predn, shape, id_count, path.stem, csv_file=save_dir / f'{path.stem}.txt')
                 id_count += 1
             if save_json:
                 save_one_json(predn, jdict, path, class_map)  # append to COCO-JSON dictionary
