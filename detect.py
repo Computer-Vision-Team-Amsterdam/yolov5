@@ -69,23 +69,6 @@ from utils.general import (
 from utils.plots import Annotator, colors, save_one_box
 from utils.torch_utils import select_device, smart_inference_mode
 
-insert_statement = """
-    INSERT INTO detection_results (
-        image_customer_name,
-        image_upload_date,
-        image_filename,
-        has_detection,
-        class_id,
-        x_norm,
-        y_norm,
-        w_norm,
-        h_norm,
-        image_width,
-        image_height,
-        run_id
-    )
-    VALUES %s
-"""
 
 @smart_inference_mode()
 def run(
@@ -152,8 +135,6 @@ def run(
     # Run inference
     model.warmup(imgsz=(1 if pt or model.triton else bs, 3, *imgsz))  # warmup
     seen, windows, dt = 0, [], (Profile(), Profile(), Profile())
-
-    results_buffer = []
     for path, im, im0s, vid_cap, s in dataset:
         with dt[0]:
             im = torch.from_numpy(im).to(model.device)
@@ -161,8 +142,6 @@ def run(
             im /= 255  # 0 - 255 to 0.0 - 1.0
             if len(im.shape) == 3:
                 im = im[None]  # expand for batch dim
-
-            image_height, image_width = im.shape[:2]
 
         # Inference
         with dt[1]:
@@ -226,22 +205,6 @@ def run(
                         blurred = cv2.GaussianBlur(area_to_blur, (135, 135), 0)
                         im0[y1:y2, x1:x2] = blurred
 
-                        # Save to results_buffer
-                        results_buffer.append((
-                            image_customer_name,
-                            image_upload_date, # TODO how do we get upload date image
-                            image_filename,
-                            True, # has_detection
-                            cls, # class_id
-                            x1,
-                            y1,
-                            x2,
-                            y2,
-                            image_width,
-                            image_height,
-                            run_id,
-                        ))
-
                     if save_img or save_crop or view_img:  # Add bbox to image
                         c = int(cls)  # integer class
                         label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
@@ -290,29 +253,6 @@ def run(
                         save_path = str(Path(save_path).with_suffix('.mp4'))  # force *.mp4 suffix on results videos
                         vid_writer[i] = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
                     vid_writer[i].write(im0)
-
-        # TODO hier moeten we ook bij results toevoegen, maar dan met None values.
-        if not pred:
-            results_buffer.append((
-                image_customer_name,
-                image_upload_date,
-                image_filename,
-                False, # has_detection
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                run_id,
-            ))
-
-        if len(results_buffer) >= jmmm_size:
-            with connection.cursor() as cursor:
-                cursor.executemany(insert_statement, results_buffer)
-                connection.commit()
-            results_buffer.clear()
 
         # Print time (inference-only)
         LOGGER.info(f"{s}{'' if len(det) else '(no detections), '}{dt[1].dt * 1E3:.1f}ms")

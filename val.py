@@ -29,6 +29,7 @@ import csv
 import numpy as np
 import torch
 from tqdm import tqdm
+from datetime import datetime
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
@@ -164,6 +165,24 @@ def process_batch(detections, labels, iouv):
     return torch.tensor(correct, dtype=torch.bool, device=iouv.device)
 
 
+insert_statement = """
+    INSERT INTO detection_results (
+        image_customer_name,
+        image_upload_date,
+        image_filename,
+        has_detection,
+        class_id,
+        x_norm,
+        y_norm,
+        w_norm,
+        h_norm,
+        image_width,
+        image_height,
+        run_id
+    )
+    VALUES %s
+"""
+
 @smart_inference_mode()
 def run(
         data,
@@ -267,10 +286,10 @@ def run(
     dt = Profile(), Profile(), Profile()  # profiling times
     loss = torch.zeros(3, device=device)
     jdict, stats, ap, ap_class = [], [], [], []
+    results_buffer = []
     callbacks.run('on_val_start')
     pbar = tqdm(dataloader, desc=s, bar_format=TQDM_BAR_FORMAT)  # progress bar
     for batch_i, (im0, im, targets, paths, shapes) in enumerate(pbar):
-
         callbacks.run('on_val_batch_start')
         if tagged_data:
             confusion_matrix = TaggedConfusionMatrix(nc=nc)
@@ -315,6 +334,20 @@ def run(
             path, shape = Path(paths[si]), shapes[si][0]
             correct = torch.zeros(npr, niou, dtype=torch.bool, device=device)  # init
             seen += 1
+
+            print(path)
+            print(shape)
+            parts = path.split('/')  # Split the path using the forward slash as the separator
+            image_filename = parts[-1]  # Last part is the filename
+            date_str = parts[-2]  # Second to last part is the date string
+
+            try:
+                image_upload_date = datetime.strptime(date_str, "%Y-%m-%d")  # Parse the date string as a datetime object
+                # print("Filename:", image_filename)
+                # print("Date:", date.strftime("%Y-%m-%d"))
+            except ValueError:
+                print("Invalid folder structure, can not retrieve date:", date_str)
+                break  # Abort the loop if an invalid date is encountered
 
             p = Path(path)  # to Path
             is_wd_path = 'wd' in p.parts
@@ -389,6 +422,46 @@ def run(
                 ):
                     raise Exception(f'Could not write image {os.path.basename(save_path)}')
                 # ======== END SAVE BLURRED ======== #
+
+            # # Save to results_buffer TODO of willen we dat het in if save_blurred_image komt
+            # results_buffer.append((
+            #     image_customer_name,
+            #     image_upload_date,
+            #     image_filename,
+            #     True,  # has_detection
+            #     cls,  # class_id
+            #     x1,
+            #     y1,
+            #     x2,
+            #     y2,
+            #     image_width,
+            #     image_height,
+            #     run_id,
+            # ))
+
+        # # TODO hier moeten we ook bij results toevoegen, maar dan met None values.
+        # if not pred:
+        #     results_buffer.append((
+        #         image_customer_name,
+        #         image_upload_date,
+        #         image_filename,
+        #         False, # has_detection
+        #         None,
+        #         None,
+        #         None,
+        #         None,
+        #         None,
+        #         None,
+        #         None,
+        #         run_id,
+        #     ))
+        #
+        # if len(results_buffer) >= jmmm_size:
+        #     with connection.cursor() as cursor:
+        #         cursor.executemany(insert_statement, results_buffer)
+        #         connection.commit()
+        #     results_buffer.clear()
+
         # Plot images
         if plots and not skip_evaluation:
             plot_images(im, targets, paths, save_dir / f'{path.stem}.jpg', names)  # labels
@@ -452,6 +525,7 @@ def run(
             map, map50 = eval.stats[:2]  # update results (mAP@0.5:0.95, mAP@0.5)
         except Exception as e:
             LOGGER.info(f'pycocotools unable to run: {e}')
+
 
     # Return results
     model.float()  # for training
