@@ -340,7 +340,7 @@ def run(
             parts = paths[si].split('/')  # Split the path using the forward slash as the separator
             image_filename = parts[-1]  # Last part is the filename
             date_str = parts[-2]  # Second to last part is the date string
-            image_width, image_height = shape  # TODO check if right format
+            image_height, image_width = shape
 
             try:
                 image_upload_date = datetime.strptime(date_str, "%Y-%m-%d")  # Parse the date string as a datetime object
