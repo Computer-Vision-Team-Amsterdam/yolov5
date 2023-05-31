@@ -216,7 +216,8 @@ def run(
         tagged_data=False,
         skip_evaluation=False,
         save_blurred_image=False,
-        save_csv=False):
+        save_csv=False,
+        customer_name=""):
     # Initialize/load model and set device
     training = model is not None
     if training:  # called by train.py
@@ -335,19 +336,22 @@ def run(
             correct = torch.zeros(npr, niou, dtype=torch.bool, device=device)  # init
             seen += 1
 
-            print(path)
-            print(shape)
-            parts = path.split('/')  # Split the path using the forward slash as the separator
+            # Get the data that we want to insert in the database
+            parts = paths[si].split('/')  # Split the path using the forward slash as the separator
             image_filename = parts[-1]  # Last part is the filename
             date_str = parts[-2]  # Second to last part is the date string
+            image_width, image_height = shape  # TODO check if right format
 
             try:
                 image_upload_date = datetime.strptime(date_str, "%Y-%m-%d")  # Parse the date string as a datetime object
-                # print("Filename:", image_filename)
-                # print("Date:", date.strftime("%Y-%m-%d"))
+                # print("Filename:", image_filename)  # TODO remove
+                # print("Date:", date.strftime("%Y-%m-%d"))  # TODO remove
             except ValueError:
                 print("Invalid folder structure, can not retrieve date:", date_str)
                 break  # Abort the loop if an invalid date is encountered
+
+            print(image_upload_date)  # TODO remove
+            print(image_filename)  # TODO remove
 
             p = Path(path)  # to Path
             is_wd_path = 'wd' in p.parts
@@ -423,9 +427,10 @@ def run(
                     raise Exception(f'Could not write image {os.path.basename(save_path)}')
                 # ======== END SAVE BLURRED ======== #
 
-            # # Save to results_buffer TODO of willen we dat het in if save_blurred_image komt
+            # TODO of willen we dat het binnen de "if save_blurred_image" komt?
+            # # Save prediction to results_buffer to later insert in database
             # results_buffer.append((
-            #     image_customer_name,
+            #     customer_name,
             #     image_upload_date,
             #     image_filename,
             #     True,  # has_detection
@@ -436,13 +441,14 @@ def run(
             #     y2,
             #     image_width,
             #     image_height,
-            #     run_id,
+            #     0,  # run_id TODO think about the numbering of run ids, now I hardcode 0
             # ))
 
-        # # TODO hier moeten we ook bij results toevoegen, maar dan met None values.
+        # # TODO add comment hier moeten we ook bij results toevoegen, maar dan met None values.
+        # Outside the predictions for loop. Also insert a row when there are no predictions.
         # if not pred:
         #     results_buffer.append((
-        #         image_customer_name,
+        #         customer_name,
         #         image_upload_date,
         #         image_filename,
         #         False, # has_detection
@@ -453,10 +459,12 @@ def run(
         #         None,
         #         None,
         #         None,
-        #         run_id,
+        #         0,  # run_id TODO think about the numbering of run ids
         #     ))
         #
-        # if len(results_buffer) >= jmmm_size:
+        # TODO we willen soms de buffer in de database inserten (niet altijd vanwege de overhead), wat is de max buffer size?
+        # TODO en aan het einde van deze functie willen we het overgebleven ook inserten
+        # if len(results_buffer) >= max_buffer_size:
         #     with connection.cursor() as cursor:
         #         cursor.executemany(insert_statement, results_buffer)
         #         connection.commit()
@@ -568,6 +576,7 @@ def parse_opt():
     parser.add_argument('--skip-evaluation', action='store_true', help='ignore code parts for production')
     parser.add_argument('--save-blurred-image', action='store_true', help='save blurred images')
     parser.add_argument('--save-csv', action='store_true', help='save metadata in csv file')
+    parser.add_argument('--customer_name', type=str, help='the customer for which we process the images')
     opt = parser.parse_args()
     opt.data = check_yaml(opt.data)  # check YAML
     opt.save_json |= opt.data.endswith('coco.yaml')
