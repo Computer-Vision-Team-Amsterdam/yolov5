@@ -265,6 +265,27 @@ def run(
         model.warmup(imgsz=(1 if pt else batch_size, 3, imgsz, imgsz))  # warmup
         pad, rect = (0.0, False) if task == 'speed' else (0.5, pt)  # square inference for benchmarks
         task = task if task in ('train', 'val', 'test') else 'val'  # path to train/val/test images
+
+        # get paths of already processed images, do a select statement with "WHERE = customer_name and processing_status pending or processed" en format het met een slash
+        # Make function to check for unique string values in two lists
+
+        # Define the processing statuses
+        processing_statuses = ["pending", "processed"]
+
+        # Construct the SQL query
+        query = """
+            SELECT image_upload_date || '/' || image_filename
+            FROM image_processing_status
+            WHERE image_customer_name = %s
+            AND processing_status IN %s
+        """
+
+        # Execute the query
+        cur.execute(query, (customer_name, tuple(processing_statuses)))
+
+        # Fetch all the resulting rows as a list of strings
+        processed_images = [row[0] for row in cur.fetchall()]
+
         dataloader = create_dataloader(data[task],
                                        imgsz,
                                        batch_size,
