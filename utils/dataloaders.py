@@ -125,6 +125,7 @@ def seed_worker(worker_id):
 
 
 def create_dataloader(path,
+                      processed_images,
                       imgsz,
                       batch_size,
                       stride,
@@ -149,6 +150,7 @@ def create_dataloader(path,
             path,
             imgsz,
             batch_size,
+            processed_images=processed_images,
             augment=augment,  # augmentation
             hyp=hyp,  # hyperparameters
             rect=rect,  # rectangular batches
@@ -159,6 +161,9 @@ def create_dataloader(path,
             image_weights=image_weights,
             prefix=prefix)
 
+    # Access the im_files attribute
+    image_files = dataset.im_files
+
     batch_size = min(batch_size, len(dataset))
     nd = torch.cuda.device_count()  # number of CUDA devices
     nw = min([os.cpu_count() // max(nd, 1), batch_size if batch_size > 1 else 0, workers])  # number of workers
@@ -166,7 +171,7 @@ def create_dataloader(path,
     loader = DataLoader if image_weights else InfiniteDataLoader  # only DataLoader allows for attribute updates
     generator = torch.Generator()
     generator.manual_seed(6148914691236517205 + seed + RANK)
-    return loader(dataset,
+    return image_files, loader(dataset,
                   batch_size=batch_size,
                   shuffle=shuffle and sampler is None,
                   num_workers=nw,
@@ -464,6 +469,7 @@ class LoadImagesAndLabels(Dataset):
                  path,
                  img_size=640,
                  batch_size=16,
+                 processed_images=[],
                  augment=False,
                  hyp=None,
                  rect=False,
@@ -494,13 +500,19 @@ class LoadImagesAndLabels(Dataset):
                     # f = list(p.rglob('*.*'))  # pathlib
                 elif p.is_file():  # file
                     with open(p) as t:
+                        # Read contents of txt file
                         t = t.read().strip().splitlines()
                         parent = str(p.parent) + os.sep
                         f += [x.replace('./', parent, 1) if x.startswith('./') else x for x in t]  # to global path
                         # f += [p.parent / x.lstrip(os.sep) for x in t]  # to global path (pathlib)
+
                 else:
                     raise FileNotFoundError(f'{prefix}{p} does not exist')
-            self.im_files = sorted(x.replace('/', os.sep) for x in f if x.split('.')[-1].lower() in IMG_FORMATS)
+            images_to_process = sorted(x.replace('/', os.sep) for x in f if x.split('.')[-1].lower() in IMG_FORMATS)
+
+            # Create a list of images to be processed that are not in the list of processed images
+            self.im_files = [image for image in images_to_process if image not in processed_images]
+
             # self.img_files = sorted([x for x in f if x.suffix[1:].lower() in IMG_FORMATS])  # pathlib
             assert self.im_files, f'{prefix}No images found'
         except Exception as e:
