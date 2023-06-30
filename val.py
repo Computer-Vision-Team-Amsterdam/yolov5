@@ -94,7 +94,7 @@ def save_one_txt_and_one_json(predn, save_conf, shape, file, json_file, confusio
 
     with open(json_file, 'w') as fp:
         json.dump(confusion_matrix.get_tagged_dict(), fp)
-    print(f'saved json at {json_file}')
+    LOGGER.info(f'saved json at {json_file}')
 
 
 def save_one_txt(predn, save_conf, shape, file):
@@ -174,7 +174,7 @@ def parse_image_path(path):
         # Parse the date string as a datetime object
         image_upload_date = datetime.strptime(date_str, "%Y-%m-%d")
     except ValueError:
-        print("Invalid folder structure, can not retrieve date:", date_str)
+        LOGGER.info(f"Invalid folder structure, can not retrieve date: {date_str}")
         # TODO raise or default date value??
 
     return image_filename, image_upload_date
@@ -184,6 +184,9 @@ insert_statement = """
     (image_customer_name, image_upload_date, image_filename, has_detection, class_id, x_norm, y_norm, w_norm, h_norm, image_width, image_height, run_id)
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
+
+update_statement = "UPDATE your_table_name SET processing_status = %s WHERE image_upload_date = %s AND image_filename = %s AND image_customer_name = %s"
+
 
 @smart_inference_mode()
 def run(
@@ -280,13 +283,14 @@ def run(
         # Define the processing statuses
         processing_statuses = ["inprogress", "processed"]
 
-        # Construct the SQL query
+        # Construct the SQL query (get all images in the database)
         query = """
             SELECT image_upload_date || '/' || image_filename
             FROM image_processing_status
             WHERE image_customer_name = %s
             AND processing_status IN %s
         """
+        # TODO pakt hij alleen de images in list storage account?
 
         # Execute the query
         cur.execute(query, (customer_name, tuple(processing_statuses)))
@@ -337,6 +341,7 @@ def run(
     jdict, stats, ap, ap_class = [], [], [], []
     results_buffer = []
     max_buffer_size = 2 # TODO
+    max_buffer_size = 50  # TODO
     callbacks.run('on_val_start')
     pbar = tqdm(dataloader, desc=s, bar_format=TQDM_BAR_FORMAT)  # progress bar
     for batch_i, (im0, im, targets, paths, shapes) in enumerate(pbar):
@@ -511,15 +516,34 @@ def run(
                 0,  # column run_id TODO think about the numbering of run ids
             ))
 
-        # TODO we willen soms de buffer in de database inserten (niet altijd vanwege de overhead), wat is de max buffer size?
-        # TODO en aan het einde van deze functie willen we het overgebleven ook inserten
+            # TODO update image_processing_status
+
         if len(results_buffer) >= max_buffer_size:
             # Create a connection to the database
             conn, cur = create_connection()
             cur.executemany(insert_statement, results_buffer)
             conn.commit()
             results_buffer.clear()
+            LOGGER.info('Stored data in the database.')
 
+            close_connection(conn, cur)
+
+            # Store in database
+            conn, cur = create_connection()
+
+            # Extract the desired columns from results_buffer using slicing
+            data = [(upload_date, filename, customer_name) for customer_name, upload_date, filename, *_ in
+                    results_buffer]
+
+            # Create the values to be updated
+            values = [("processed", upload_date, filename, customer_name) for upload_date, filename, customer_name in
+                      data]
+
+            # Execute the update operation
+            cur.executemany(update_statement, values)
+            conn.commit()
+
+            # Close the database connection
             close_connection(conn, cur)
 
         # Plot images
@@ -528,6 +552,36 @@ def run(
             plot_images(im, output_to_target(preds), paths, save_dir / f'{path.stem}_pred.jpg', names)  # pred
 
         callbacks.run('on_val_batch_end', batch_i, im, targets, paths, shapes, preds)
+
+    # Check if we still have items left in buffer
+    if results_buffer:
+        # Create a connection to the database
+        conn, cur = create_connection()
+        cur.executemany(insert_statement, results_buffer)
+        conn.commit()
+        results_buffer.clear()
+        LOGGER.info('Stored data in the database.')
+
+        # Close connection to the database
+        close_connection(conn, cur)
+
+        # Store in database
+        conn, cur = create_connection()
+
+        # Extract the desired columns from results_buffer using slicing
+        data = [(upload_date, filename, customer_name) for customer_name, upload_date, filename, *_ in
+                results_buffer]
+
+        # Create the values to be updated
+        values = [("processed", upload_date, filename, customer_name) for upload_date, filename, customer_name in
+                  data]
+
+        # Execute the update operation
+        cur.executemany(update_statement, values)
+        conn.commit()
+
+        # Close the database connection
+        close_connection(conn, cur)
 
     # Compute metrics
     if not skip_evaluation:
@@ -599,14 +653,6 @@ def run(
         return (mp, mr, map50, map, []), maps, t
     return (mp, mr, map50, map, *(loss.cpu() / len(dataloader)).tolist()), maps, t
 
-
-# weights = f"{mounted_root_folder}/best.pt",
-# data = f"{yolo_yaml_path}/pano.yaml",
-# project = results_path,
-# device = cuda_device,
-# name = "val_detection_results",
-# customer_name = customer_name,  # We want to save this info in a database
-# ** model_parameters,
 
 def parse_opt():
     parser = argparse.ArgumentParser()
