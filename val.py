@@ -497,6 +497,17 @@ def run(
                 # Add the instance to the session
                 session.add(detection_info)
 
+                # Create a new instance of the ImageProcessingStatus model
+                image_processing_status = ImageProcessingStatus(
+                    image_filename=image_filename,
+                    image_upload_date=image_upload_date,
+                    image_customer_name=customer_name,
+                    processing_status="processed"
+                )
+
+                # Add the instance to the session
+                session.add(image_processing_status)
+
             # ======== SAVE BLURRED ======== #
             if save_blurred_image:
                 folder_path = os.path.dirname(save_path)
@@ -537,6 +548,17 @@ def run(
 
             # Add the instance to the session
             session.add(detection_info)
+
+            # Create a new instance of the ImageProcessingStatus model
+            image_processing_status = ImageProcessingStatus(
+                image_filename=image_filename,
+                image_upload_date=image_upload_date,
+                image_customer_name=customer_name,
+                processing_status="processed"
+            )
+
+            # Add the instance to the session
+            session.add(image_processing_status)
 
         if results_buffer >= max_buffer_size:
             # Commit the changes to the database
