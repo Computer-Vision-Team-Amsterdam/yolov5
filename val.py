@@ -40,8 +40,8 @@ if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))  # add ROOT to PATH
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 
-from yolov5_jm.database.database_handler import create_connection, close_connection
-from yolov5_jm.database.tables import ImageProcessingStatus, DetectionInformation
+from database.database_handler import create_connection, close_connection
+from database.tables import ImageProcessingStatus, DetectionInformation
 from models.common import DetectMultiBackend
 from utils.callbacks import Callbacks
 from utils.dataloaders import create_dataloader
@@ -505,8 +505,8 @@ def run(
                     processing_status="processed"
                 )
 
-                # Add the instance to the session
-                session.add(image_processing_status)
+                # Merge the instance into the session (updates if already exists)
+                session.merge(image_processing_status)
 
             # ======== SAVE BLURRED ======== #
             if save_blurred_image:
@@ -557,8 +557,8 @@ def run(
                 processing_status="processed"
             )
 
-            # Add the instance to the session
-            session.add(image_processing_status)
+            # Merge the instance into the session (updates if already exists)
+            session.merge(image_processing_status)
 
         if results_buffer >= max_buffer_size:
             # Commit the changes to the database
