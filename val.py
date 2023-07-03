@@ -522,9 +522,8 @@ def run(
                     raise Exception(f'Could not write image {os.path.basename(save_path)}')
             # ======== END SAVE BLURRED ======== #
 
-        # Filter and iterate over paths with no detection
+        # Filter and iterate over paths with no detection in current batch
         false_paths = [path for path in image_detections if not image_detections[path]]
-
 
         # Process images with no detection
         for false_path in false_paths:
