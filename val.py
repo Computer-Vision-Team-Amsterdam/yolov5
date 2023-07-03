@@ -351,11 +351,11 @@ def run(
     dt = Profile(), Profile(), Profile()  # profiling times
     loss = torch.zeros(3, device=device)
     jdict, stats, ap, ap_class = [], [], [], []
-    results_buffer = 0
-    max_buffer_size = 50  # TODO
     callbacks.run('on_val_start')
     pbar = tqdm(dataloader, desc=s, bar_format=TQDM_BAR_FORMAT)  # progress bar
 
+    results_buffer_cnt = 0
+    max_buffer_size = 50  # TODO
     for batch_i, (im0, im, targets, paths, shapes) in enumerate(pbar):
         callbacks.run('on_val_batch_start')
         if tagged_data:
@@ -476,7 +476,8 @@ def run(
                 blurred = cv2.GaussianBlur(area_to_blur, (135, 135), 0)
                 im0[si][y1:y2, x1:x2] = blurred
 
-                results_buffer += 1
+                # Update buffer count
+                results_buffer_cnt += 1
 
                 # Create an instance of DetectionInformation
                 detection_info = DetectionInformation(
@@ -527,7 +528,7 @@ def run(
 
         # Process images with no detection
         for false_path in false_paths:
-            results_buffer += 1
+            results_buffer_cnt += 1
             image_filename, image_upload_date = parse_image_path(false_path)
 
             # Create an instance of DetectionInformation
