@@ -29,6 +29,10 @@ import numpy as np
 import torch
 from tqdm import tqdm
 from datetime import datetime
+from sqlalchemy import text
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.exc import SQLAlchemyError
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
@@ -36,7 +40,7 @@ if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))  # add ROOT to PATH
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 
-from database_handler import create_connection, close_connection
+from database_handler import create_connection, close_connection, ImageProcessingStatus, DetectionInformation
 from models.common import DetectMultiBackend
 from utils.callbacks import Callbacks
 from utils.dataloaders import create_dataloader
@@ -179,14 +183,6 @@ def parse_image_path(path):
 
     return image_filename, image_upload_date
 
-insert_statement = """
-    INSERT INTO detection_information 
-    (image_customer_name, image_upload_date, image_filename, has_detection, class_id, x_norm, y_norm, w_norm, h_norm, image_width, image_height, run_id)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-"""
-
-update_statement = "UPDATE your_table_name SET processing_status = %s WHERE image_upload_date = %s AND image_filename = %s AND image_customer_name = %s"
-
 
 @smart_inference_mode()
 def run(
@@ -274,29 +270,40 @@ def run(
         pad, rect = (0.0, False) if task == 'speed' else (0.5, pt)  # square inference for benchmarks
         task = task if task in ('train', 'val', 'test') else 'val'  # path to train/val/test images
 
+        # TODO
         # get paths of already processed images, do a select statement with "WHERE = customer_name and processing_status pending or processed" en format het met een slash
         # Make function to check for unique string values in two lists
 
-        # Create a connection to the database
-        conn, cur = create_connection()
+        # Create the engine
+        db_url = f"postgresql://{os.environ['POSTGRES_USER']}:{os.environ['POSTGRES_PASSWORD']}@{os.environ['POSTGRES_HOST']}/{os.environ['POSTGRES_DB']}"
+        engine = create_engine(db_url)
 
-        # Define the processing statuses
-        processing_statuses = ["inprogress", "processed"]
+        # Create and open a session
+        Session = sessionmaker(bind=engine)
+        session = Session()
 
-        # Construct the SQL query (get all images in the database)
-        query = """
+        # Define the processing statuses # TODO
+        # processing_statuses = ["inprogress", "processed"]
+
+        # Construct the SQL query using SQLAlchemy's text() function
+        query = text("""
             SELECT image_upload_date || '/' || image_filename
             FROM image_processing_status
-            WHERE image_customer_name = %s
-            AND processing_status IN %s
-        """
-        # TODO pakt hij alleen de images in list storage account?
+            WHERE image_customer_name = :customer_name
+            AND processing_status IN ('inprogress', 'processed')
+        """)
 
         # Execute the query
-        cur.execute(query, (customer_name, tuple(processing_statuses)))
+        result = session.execute(query, {"customer_name": customer_name})
 
         # Fetch all the resulting rows as a list of strings
-        processed_images = [row[0] for row in cur.fetchall()]
+        processed_images = [row[0] for row in result.fetchall()]
+
+        # # Close the session TODO
+        # session.close()
+
+        print("sqlalchemy")
+        print(processed_images)
 
         image_files, dataloader, _ = create_dataloader(data[task],
                                        processed_images,
@@ -311,21 +318,32 @@ def run(
 
         # TODO do we need to close and start the connection?
         processing_status = "inprogress"
-        # Prepare the SQL query
-        query = "INSERT INTO image_processing_status (image_filename, image_upload_date, image_customer_name, processing_status) " \
-                "VALUES (%s, %s, %s, %s)"
 
-        # Iterate over the image_files list
-        for image_path in image_files:
-            image_filename, image_upload_date = parse_image_path(image_path)
+        try:
+            # Iterate over the image_files list
+            for image_path in image_files:
+                image_filename, image_upload_date = parse_image_path(image_path)
 
-            # Execute the SQL query with the provided values
-            cur.execute(query, (image_filename, image_upload_date, customer_name, processing_status))
+                # Create a new instance of the ImageProcessingStatus model
+                image_processing_status = ImageProcessingStatus(
+                    image_filename=image_filename,
+                    image_upload_date=image_upload_date,
+                    image_customer_name=customer_name,
+                    processing_status=processing_status
+                )
 
-        # Commit the changes to the database
-        conn.commit()
+                # Add the instance to the session
+                session.add(image_processing_status)
 
-        close_connection(conn, cur) # TODO
+            # Commit the changes to the database
+            session.commit()
+            session.close()
+
+        except SQLAlchemyError as e:
+            # Handle the exception
+            session.rollback()
+            session.close()
+            raise e
 
     seen = 0
     if not tagged_data:
@@ -339,10 +357,11 @@ def run(
     dt = Profile(), Profile(), Profile()  # profiling times
     loss = torch.zeros(3, device=device)
     jdict, stats, ap, ap_class = [], [], [], []
-    results_buffer = []
+    results_buffer = 0
     max_buffer_size = 50  # TODO
     callbacks.run('on_val_start')
     pbar = tqdm(dataloader, desc=s, bar_format=TQDM_BAR_FORMAT)  # progress bar
+
     for batch_i, (im0, im, targets, paths, shapes) in enumerate(pbar):
         callbacks.run('on_val_batch_start')
         if tagged_data:
@@ -463,21 +482,26 @@ def run(
                 blurred = cv2.GaussianBlur(area_to_blur, (135, 135), 0)
                 im0[si][y1:y2, x1:x2] = blurred
 
-                # Save prediction to results_buffer to later insert in database
-                results_buffer.append((
-                    customer_name,
-                    image_upload_date,
-                    image_filename,
-                    True,  # column has_detection
-                    int(cls),  # column class_id
-                    x1,
-                    y1,
-                    x2,
-                    y2,
-                    image_width,
-                    image_height,
-                    0,  # run_id TODO think about the numbering of run ids, now I hardcode 0
-                ))
+                results_buffer += 1
+
+                # Create an instance of DetectionInformation
+                detection_info = DetectionInformation(
+                    image_customer_name=customer_name,
+                    image_upload_date=image_upload_date,
+                    image_filename=image_filename,
+                    has_detection=True,
+                    class_id=int(cls),
+                    x_norm=x1,
+                    y_norm=y1,
+                    w_norm=x2,
+                    h_norm=y2,
+                    image_width=image_width,
+                    image_height=image_height,
+                    run_id=0
+                )
+
+                # Add the instance to the session
+                session.add(detection_info)
 
             # ======== SAVE BLURRED ======== #
             if save_blurred_image:
@@ -495,56 +519,40 @@ def run(
         # Filter and iterate over paths with no detection
         false_paths = [path for path in image_detections if not image_detections[path]]
 
+
         # Process images with no detection
         for false_path in false_paths:
+            results_buffer += 1
             image_filename, image_upload_date = parse_image_path(false_path)
 
-            # Add to the list to later insert in the database
-            results_buffer.append((
-                customer_name,
-                image_upload_date,
-                image_filename,
-                False,  # column has_detection
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                0,  # column run_id TODO think about the numbering of run ids
-            ))
+            # Create an instance of DetectionInformation
+            detection_info = DetectionInformation(
+                image_customer_name=customer_name,
+                image_upload_date=image_upload_date,
+                image_filename=image_filename,
+                has_detection=False,
+                class_id=None,
+                x_norm=None,
+                y_norm=None,
+                w_norm=None,
+                h_norm=None,
+                image_width=None,
+                image_height=None,
+                run_id=0
+            )
 
-            # TODO update image_processing_status
+            # Add the instance to the session
+            session.add(detection_info)
 
-        if len(results_buffer) >= max_buffer_size:
-            # Create a connection to the database
-            conn, cur = create_connection()
-            cur.executemany(insert_statement, results_buffer)
-            conn.commit()
-            LOGGER.info('Stored data in the database.')
+        if results_buffer >= max_buffer_size:
+            # Commit the changes to the database
+            session.commit()
 
-            close_connection(conn, cur)
+            # Close the session
+            session.close()
 
-            # Store in database
-            conn, cur = create_connection()
-
-            # Extract the desired columns from results_buffer using slicing
-            data = [(upload_date, filename, customer_name) for customer_name, upload_date, filename, *_ in
-                    results_buffer]
-
-            # Create the values to be updated
-            values = [("processed", upload_date, filename, customer_name) for upload_date, filename, customer_name in
-                      data]
-
-            # Execute the update operation
-            cur.executemany(update_statement, values)
-            conn.commit()
-
-            # Close the database connection
-            close_connection(conn, cur)
-
-            results_buffer.clear()
+            # Reset
+            results_buffer = 0
 
         # Plot images
         if plots and not skip_evaluation:
@@ -555,34 +563,11 @@ def run(
 
     # Check if we still have items left in buffer
     if results_buffer:
-        # Create a connection to the database
-        conn, cur = create_connection()
-        cur.executemany(insert_statement, results_buffer)
-        conn.commit()
-        LOGGER.info('Stored data in the database.')
+        # Commit the changes to the database
+        session.commit()
 
-        # Close connection to the database
-        close_connection(conn, cur)
-
-        # Store in database
-        conn, cur = create_connection()
-
-        # Extract the desired columns from results_buffer using slicing
-        data = [(upload_date, filename, customer_name) for customer_name, upload_date, filename, *_ in
-                results_buffer]
-
-        # Create the values to be updated
-        values = [("processed", upload_date, filename, customer_name) for upload_date, filename, customer_name in
-                  data]
-
-        # Execute the update operation
-        cur.executemany(update_statement, values)
-        conn.commit()
-
-        # Close the database connection
-        close_connection(conn, cur)
-
-        results_buffer.clear()
+        # Close the session
+        session.close()
 
     # Compute metrics
     if not skip_evaluation:
