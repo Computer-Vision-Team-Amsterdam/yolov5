@@ -340,7 +340,6 @@ def run(
     loss = torch.zeros(3, device=device)
     jdict, stats, ap, ap_class = [], [], [], []
     results_buffer = []
-    max_buffer_size = 2 # TODO
     max_buffer_size = 50  # TODO
     callbacks.run('on_val_start')
     pbar = tqdm(dataloader, desc=s, bar_format=TQDM_BAR_FORMAT)  # progress bar
@@ -523,7 +522,6 @@ def run(
             conn, cur = create_connection()
             cur.executemany(insert_statement, results_buffer)
             conn.commit()
-            results_buffer.clear()
             LOGGER.info('Stored data in the database.')
 
             close_connection(conn, cur)
@@ -546,6 +544,8 @@ def run(
             # Close the database connection
             close_connection(conn, cur)
 
+            results_buffer.clear()
+
         # Plot images
         if plots and not skip_evaluation:
             plot_images(im, targets, paths, save_dir / f'{path.stem}.jpg', names)  # labels
@@ -559,7 +559,6 @@ def run(
         conn, cur = create_connection()
         cur.executemany(insert_statement, results_buffer)
         conn.commit()
-        results_buffer.clear()
         LOGGER.info('Stored data in the database.')
 
         # Close connection to the database
@@ -582,6 +581,8 @@ def run(
 
         # Close the database connection
         close_connection(conn, cur)
+
+        results_buffer.clear()
 
     # Compute metrics
     if not skip_evaluation:
