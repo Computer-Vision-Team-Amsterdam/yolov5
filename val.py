@@ -40,7 +40,8 @@ if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))  # add ROOT to PATH
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 
-from database_handler import create_connection, close_connection, ImageProcessingStatus, DetectionInformation
+from yolov5_jm.database.database_handler import create_connection, close_connection
+from yolov5_jm.database.tables import ImageProcessingStatus, DetectionInformation
 from models.common import DetectMultiBackend
 from utils.callbacks import Callbacks
 from utils.dataloaders import create_dataloader
@@ -55,7 +56,6 @@ from utils.general import (
     coco80_to_coco91_class,
     colorstr,
     cv2,
-    increment_path,
     non_max_suppression,
     print_args,
     scale_boxes,
@@ -274,13 +274,8 @@ def run(
         # get paths of already processed images, do a select statement with "WHERE = customer_name and processing_status pending or processed" en format het met een slash
         # Make function to check for unique string values in two lists
 
-        # Create the engine
-        db_url = f"postgresql://{os.environ['POSTGRES_USER']}:{os.environ['POSTGRES_PASSWORD']}@{os.environ['POSTGRES_HOST']}/{os.environ['POSTGRES_DB']}"
-        engine = create_engine(db_url)
-
-        # Create and open a session
-        Session = sessionmaker(bind=engine)
-        session = Session()
+        # Create the database connection
+        engine, session = create_connection()
 
         # Define the processing statuses # TODO
         # processing_statuses = ["inprogress", "processed"]
@@ -299,7 +294,7 @@ def run(
         # Fetch all the resulting rows as a list of strings
         processed_images = [row[0] for row in result.fetchall()]
 
-        # # Close the session TODO
+        # # Close the session TODO try except
         # session.close()
 
         print("sqlalchemy")
@@ -341,8 +336,7 @@ def run(
 
         except SQLAlchemyError as e:
             # Handle the exception
-            session.rollback()
-            session.close()
+            close_connection(engine, session)
             raise e
 
     seen = 0
@@ -548,9 +542,6 @@ def run(
             # Commit the changes to the database
             session.commit()
 
-            # Close the session
-            session.close()
-
             # Reset
             results_buffer = 0
 
@@ -567,7 +558,7 @@ def run(
         session.commit()
 
         # Close the session
-        session.close()
+        close_connection(engine, session)
 
     # Compute metrics
     if not skip_evaluation:
