@@ -30,8 +30,6 @@ import torch
 from tqdm import tqdm
 from datetime import datetime
 from sqlalchemy import text
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
 
 FILE = Path(__file__).resolve()
@@ -277,28 +275,23 @@ def run(
         # Create the database connection
         engine, session = create_connection()
 
-        # Define the processing statuses # TODO
-        # processing_statuses = ["inprogress", "processed"]
+        # Define the processing statuses
+        processing_statuses = ["inprogress", "processed"]
 
-        # Construct the SQL query using SQLAlchemy's text() function
-        query = text("""
-            SELECT image_upload_date || '/' || image_filename
-            FROM image_processing_status
-            WHERE image_customer_name = :customer_name
-            AND processing_status IN ('inprogress', 'processed')
-        """)
+        # Construct the query using SQLAlchemy's query-building capabilities
+        query = session.query(ImageProcessingStatus.image_upload_date, ImageProcessingStatus.image_filename) \
+            .filter(
+            ImageProcessingStatus.image_customer_name == customer_name,
+            ImageProcessingStatus.processing_status.in_(processing_statuses)
+        )
 
-        # Execute the query
-        result = session.execute(query, {"customer_name": customer_name})
+        # Execute the query and fetch the results
+        result = query.all()
 
-        # Fetch all the resulting rows as a list of strings
-        processed_images = [row[0] for row in result.fetchall()]
+        # Extract the processed images from the result
+        processed_images = [f"{row.image_upload_date}/{row.image_filename}" for row in result]
 
-        # # Close the session TODO try except
-        # session.close()
-
-        print("sqlalchemy")
-        print(processed_images)
+        # Close the session TODO try except
 
         image_files, dataloader, _ = create_dataloader(data[task],
                                        processed_images,
@@ -560,12 +553,13 @@ def run(
             # Merge the instance into the session (updates if already exists)
             session.merge(image_processing_status)
 
-        if results_buffer >= max_buffer_size:
+        # Check if the "buffer" is full
+        if results_buffer_cnt >= max_buffer_size:
             # Commit the changes to the database
             session.commit()
 
             # Reset
-            results_buffer = 0
+            results_buffer_cnt = 0
 
         # Plot images
         if plots and not skip_evaluation:
@@ -575,7 +569,7 @@ def run(
         callbacks.run('on_val_batch_end', batch_i, im, targets, paths, shapes, preds)
 
     # Check if we still have items left in buffer
-    if results_buffer:
+    if results_buffer_cnt:
         # Commit the changes to the database
         session.commit()
 
