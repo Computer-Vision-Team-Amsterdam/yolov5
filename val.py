@@ -29,8 +29,8 @@ import numpy as np
 import torch
 from tqdm import tqdm
 from datetime import datetime
-from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import func
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
@@ -230,6 +230,7 @@ def run(
         # Directories
         #save_dir = increment_path(Path(project) / name, exist_ok=exist_ok)  # increment run
         save_dir = Path('/container/landing_zone/output')  # TODO
+        input_dir = '/container/landing_zone/input_structured'  # TODO
 
         (save_dir / 'labels' if save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
         if tagged_data:
@@ -279,8 +280,11 @@ def run(
         processing_statuses = ["inprogress", "processed"]
 
         # Construct the query using SQLAlchemy's query-building capabilities
-        query = session.query(ImageProcessingStatus.image_upload_date, ImageProcessingStatus.image_filename) \
-            .filter(
+        query = session.query(
+            func.date(ImageProcessingStatus.image_upload_date).label('upload_date'),
+            ImageProcessingStatus.image_filename
+        ) \
+        .filter(
             ImageProcessingStatus.image_customer_name == customer_name,
             ImageProcessingStatus.processing_status.in_(processing_statuses)
         )
@@ -289,7 +293,9 @@ def run(
         result = query.all()
 
         # Extract the processed images from the result
-        processed_images = [f"{row.image_upload_date}/{row.image_filename}" for row in result]
+        processed_images = [f"{input_dir}/{row.upload_date}/{row.image_filename}" for row in result]
+
+        print(processed_images)
 
         # Close the session TODO try except
 

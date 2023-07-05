@@ -514,7 +514,7 @@ class LoadImagesAndLabels(Dataset):
             self.im_files = [image for image in images_to_process if image not in processed_images]
 
             # self.img_files = sorted([x for x in f if x.suffix[1:].lower() in IMG_FORMATS])  # pathlib
-            assert self.im_files, f'{prefix}No images found'
+            assert self.im_files, f'{prefix}No (new) images found' # TODO maybe make this as raise?
         except Exception as e:
             raise Exception(f'{prefix}Error loading data from {path}: {e}\n{HELP_URL}') from e
 
