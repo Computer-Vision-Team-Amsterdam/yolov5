@@ -175,9 +175,9 @@ def parse_image_path(path):
     try:
         # Parse the date string as a datetime object
         image_upload_date = datetime.strptime(date_str, "%Y-%m-%d")
-    except ValueError:
+    except ValueError as e:
         LOGGER.info(f"Invalid folder structure, can not retrieve date: {date_str}")
-        # TODO raise or default date value??
+        raise e
 
     return image_filename, image_upload_date
 
