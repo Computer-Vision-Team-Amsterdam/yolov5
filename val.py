@@ -269,17 +269,13 @@ def run(
         pad, rect = (0.0, False) if task == 'speed' else (0.5, pt)  # square inference for benchmarks
         task = task if task in ('train', 'val', 'test') else 'val'  # path to train/val/test images
 
-        # TODO
-        # get paths of already processed images, do a select statement with "WHERE = customer_name and processing_status pending or processed" en format het met een slash
-        # Make function to check for unique string values in two lists
-
         # Create the database connection
         engine, session = create_connection()
 
         # Define the processing statuses
         processing_statuses = ["inprogress", "processed"]
 
-        # Construct the query using SQLAlchemy's query-building capabilities
+        # Construct the query to get all rows with a certain processing status
         query = session.query(
             func.date(ImageProcessingStatus.image_upload_date).label('upload_date'),
             ImageProcessingStatus.image_filename
@@ -295,10 +291,6 @@ def run(
         # Extract the processed images from the result
         processed_images = [f"{input_dir}/{row.upload_date}/{row.image_filename}" for row in result]
 
-        print(processed_images)
-
-        # Close the session TODO try except
-
         image_files, dataloader, _ = create_dataloader(data[task],
                                        processed_images,
                                        imgsz,
@@ -310,9 +302,7 @@ def run(
                                        workers=workers,
                                        prefix=colorstr(f'{task}: '))
 
-        # TODO do we need to close and start the connection?
-        processing_status = "inprogress"
-
+        # Lock the images that we are processing in this run with the state "inprogress"
         try:
             # Iterate over the image_files list
             for image_path in image_files:
@@ -323,7 +313,7 @@ def run(
                     image_filename=image_filename,
                     image_upload_date=image_upload_date,
                     image_customer_name=customer_name,
-                    processing_status=processing_status
+                    processing_status="inprogress"
                 )
 
                 # Add the instance to the session
@@ -331,7 +321,6 @@ def run(
 
             # Commit the changes to the database
             session.commit()
-            session.close()
 
         except SQLAlchemyError as e:
             # Handle the exception
@@ -352,9 +341,6 @@ def run(
     jdict, stats, ap, ap_class = [], [], [], []
     callbacks.run('on_val_start')
     pbar = tqdm(dataloader, desc=s, bar_format=TQDM_BAR_FORMAT)  # progress bar
-
-    results_buffer_cnt = 0
-    max_buffer_size = 50  # TODO
     for batch_i, (im0, im, targets, paths, shapes) in enumerate(pbar):
         callbacks.run('on_val_batch_start')
         if tagged_data:
@@ -475,9 +461,6 @@ def run(
                 blurred = cv2.GaussianBlur(area_to_blur, (135, 135), 0)
                 im0[si][y1:y2, x1:x2] = blurred
 
-                # Update buffer count
-                results_buffer_cnt += 1
-
                 # Create an instance of DetectionInformation
                 detection_info = DetectionInformation(
                     image_customer_name=customer_name,
@@ -526,7 +509,6 @@ def run(
 
         # Process images with no detection
         for false_path in false_paths:
-            results_buffer_cnt += 1
             image_filename, image_upload_date = parse_image_path(false_path)
 
             # Create an instance of DetectionInformation
@@ -559,13 +541,8 @@ def run(
             # Merge the instance into the session (updates if already exists)
             session.merge(image_processing_status)
 
-        # Check if the "buffer" is full
-        if results_buffer_cnt >= max_buffer_size:
-            # Commit the changes to the database
-            session.commit()
-
-            # Reset
-            results_buffer_cnt = 0
+        # Commit the changes to the database
+        session.commit()
 
         # Plot images
         if plots and not skip_evaluation:
@@ -573,14 +550,6 @@ def run(
             plot_images(im, output_to_target(preds), paths, save_dir / f'{path.stem}_pred.jpg', names)  # pred
 
         callbacks.run('on_val_batch_end', batch_i, im, targets, paths, shapes, preds)
-
-    # Check if we still have items left in buffer
-    if results_buffer_cnt:
-        # Commit the changes to the database
-        session.commit()
-
-        # Close the session
-        close_connection(engine, session)
 
     # Compute metrics
     if not skip_evaluation:
