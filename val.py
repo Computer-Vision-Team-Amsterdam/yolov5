@@ -54,6 +54,7 @@ from utils.general import (
     coco80_to_coco91_class,
     colorstr,
     cv2,
+    increment_path,
     non_max_suppression,
     print_args,
     scale_boxes,
@@ -64,6 +65,7 @@ from utils.metrics import ConfusionMatrix, TaggedConfusionMatrix, ap_per_class, 
 from utils.plots import output_to_target, plot_images, plot_val_study
 from utils.torch_utils import select_device, smart_inference_mode
 
+LOCAL_RUN = True
 
 def save_one_txt_and_one_json(predn, save_conf, shape, file, json_file, confusion_matrix):
     """
@@ -228,9 +230,12 @@ def run(
         device = select_device(device, batch_size=batch_size)
 
         # Directories
-        #save_dir = increment_path(Path(project) / name, exist_ok=exist_ok)  # increment run
-        save_dir = Path('/container/landing_zone/output')  # TODO
-        input_dir = '/container/landing_zone/input_structured'  # TODO
+        if LOCAL_RUN:
+            save_dir = Path('/container/landing_zone/output')
+            input_dir = '/container/landing_zone/input_structured'
+        else:
+            save_dir = increment_path(Path(project) / name, exist_ok=exist_ok)  # increment run
+
 
         (save_dir / 'labels' if save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
         if tagged_data:
@@ -289,7 +294,10 @@ def run(
         result = query.all()
 
         # Extract the processed images from the result
-        processed_images = [f"{input_dir}/{row.upload_date}/{row.image_filename}" for row in result]
+        if LOCAL_RUN:
+            processed_images = [f"{input_dir}/{row.upload_date}/{row.image_filename}" for row in result]
+        else:
+            processed_images = [f"{row.upload_date}/{row.image_filename}" for row in result]
 
         image_files, dataloader, _ = create_dataloader(data[task],
                                        processed_images,

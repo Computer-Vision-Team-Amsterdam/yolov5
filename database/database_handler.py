@@ -7,10 +7,16 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+LOCAL_RUN = True
+
+
 def create_connection():
     try:
         # Create the engine
-        db_url = f"postgresql://{os.environ['POSTGRES_USER']}:{os.environ['POSTGRES_PASSWORD']}@{os.environ['POSTGRES_HOST']}/{os.environ['POSTGRES_DB']}"
+        if LOCAL_RUN:
+            db_url = f"postgresql://{os.environ['POSTGRES_USER']}:{os.environ['POSTGRES_PASSWORD']}@{os.environ['POSTGRES_HOST']}/{os.environ['POSTGRES_DB']}"
+        else:
+            db_url = f"postgresql://TODO"
         engine = create_engine(db_url)
 
         # Create and open a session
