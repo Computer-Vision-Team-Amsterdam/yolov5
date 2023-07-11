@@ -18,6 +18,7 @@ def create_connection():
         engine = create_engine(db_url)
 
         # Create and open a session
+        engine = create_engine(db_url)
         Session = sessionmaker(bind=engine)
 
         with Session() as session:
