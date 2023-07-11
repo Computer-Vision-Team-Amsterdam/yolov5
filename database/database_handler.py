@@ -35,10 +35,14 @@ def close_connection(engine, session):
         # Close the session
         session.close()
 
-        # Dispose the engine
-        engine.dispose()
-
     except SQLAlchemyError as e:
-        # Handle any exceptions that occur during connection closing
-        LOGGER.error(f"Error closing database connection: {str(e)}")
+        LOGGER.error(f"Error closing database session: {str(e)}")
         raise e
+
+    finally:
+        try:
+            # Dispose the engine
+            engine.dispose()
+        except SQLAlchemyError as e:
+            LOGGER.error(f"Error disposing the database engine: {str(e)}")
+            raise e
