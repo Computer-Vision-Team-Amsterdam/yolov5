@@ -3,9 +3,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
 
 import os
-import logging
-
-logger = logging.getLogger(__name__)
+from utils.general import LOGGER
 
 LOCAL_RUN = True
 
@@ -27,7 +25,7 @@ def create_connection():
 
     except SQLAlchemyError as e:
         # Handle any exceptions that occur during connection creation
-        print(f"Error creating database connection: {str(e)}")
+        LOGGER.error(f"Error creating database connection: {str(e)}")
         raise
 
 def close_connection(engine, session):
@@ -40,5 +38,5 @@ def close_connection(engine, session):
 
     except SQLAlchemyError as e:
         # Handle any exceptions that occur during connection closing
-        print(f"Error closing database connection: {str(e)}")
+        LOGGER.error(f"Error closing database connection: {str(e)}")
         raise
