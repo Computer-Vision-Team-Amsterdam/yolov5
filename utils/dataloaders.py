@@ -126,6 +126,7 @@ def seed_worker(worker_id):
 
 def create_dataloader(path,
                       processed_images,
+                      input_dir,
                       imgsz,
                       batch_size,
                       stride,
@@ -151,6 +152,7 @@ def create_dataloader(path,
             imgsz,
             batch_size,
             processed_images=processed_images,
+            input_dir=input_dir,
             augment=augment,  # augmentation
             hyp=hyp,  # hyperparameters
             rect=rect,  # rectangular batches
@@ -470,6 +472,7 @@ class LoadImagesAndLabels(Dataset):
                  img_size=640,
                  batch_size=16,
                  processed_images=[],
+                 input_dir="",
                  augment=False,
                  hyp=None,
                  rect=False,
@@ -503,7 +506,7 @@ class LoadImagesAndLabels(Dataset):
                         # Read contents of txt file
                         t = t.read().strip().splitlines()
                         parent = str(p.parent) + os.sep
-                        f += [x.replace('./', parent, 1) if x.startswith('./') else x for x in t]  # to global path
+                        f += [x.replace('./', parent, 1) if x.startswith('./') else input_dir + x for x in t]  # to global path
                         # f += [p.parent / x.lstrip(os.sep) for x in t]  # to global path (pathlib)
 
                 else:
