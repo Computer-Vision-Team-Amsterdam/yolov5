@@ -296,7 +296,7 @@ def run(
 
         # Extract the processed images from the result
         if LOCAL_RUN:
-            processed_images = [f"{input_dir}/{row.upload_date}/{row.image_filename}" for row in result]
+            processed_images = [f"{input_dir}{row.upload_date}/{row.image_filename}" for row in result]
         else:
             processed_images = [f"{row.upload_date}/{row.image_filename}" for row in result]
 
