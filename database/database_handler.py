@@ -19,14 +19,15 @@ def create_connection():
 
         # Create and open a session
         Session = sessionmaker(bind=engine)
-        session = Session()
 
-        return engine, session
+        with Session() as session:
+            return engine, session
 
     except SQLAlchemyError as e:
         # Handle any exceptions that occur during connection creation
         LOGGER.error(f"Error creating database connection: {str(e)}")
-        raise
+        raise e
+
 
 def close_connection(engine, session):
     try:
@@ -39,4 +40,4 @@ def close_connection(engine, session):
     except SQLAlchemyError as e:
         # Handle any exceptions that occur during connection closing
         LOGGER.error(f"Error closing database connection: {str(e)}")
-        raise
+        raise e
