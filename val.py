@@ -25,10 +25,11 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-
+import csv
 import numpy as np
 import torch
 from tqdm import tqdm
+from datetime import datetime
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
@@ -106,6 +107,26 @@ def save_one_txt(predn, save_conf, shape, file):
             f.write(('%g ' * len(line)).rstrip() % line + '\n')
 
 
+def save_one_csv(predn, shape, filename, csv_file):
+    # Save one txt result
+    gn = torch.tensor(shape)[[1, 0, 1, 0]]  # normalization gain whwh
+    for *xyxy, conf, cls in predn.tolist():
+        xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
+
+        # Round the values in xywh to 3 decimal places
+        xywh = [round(x, 3) for x in xywh]
+
+        line = (filename, *xywh, cls)  # label format
+        with open(csv_file, 'a') as f:
+            writer = csv.writer(f)
+
+            # Write header row if file is empty
+            if f.tell() == 0:
+                writer.writerow(['filename', 'x', 'y', 'w', 'h', 'class'])
+
+            writer.writerow(line)
+
+
 def save_one_json(predn, jdict, path, class_map):
     # Save one JSON result {"image_id": 42, "category_id": 18, "bbox": [258.15, 41.29, 348.26, 243.78], "score": 0.236}
     image_id = int(path.stem) if path.stem.isnumeric() else path.stem
@@ -144,6 +165,33 @@ def process_batch(detections, labels, iouv):
     return torch.tensor(correct, dtype=torch.bool, device=iouv.device)
 
 
+insert_statement = """
+    INSERT INTO detection_results (
+        image_customer_name,
+        image_upload_date,
+        image_filename,
+        has_detection,
+        class_id,
+        x_norm,
+        y_norm,
+        w_norm,
+        h_norm,
+        image_width,
+        image_height,
+        run_id
+    )
+    VALUES %s
+"""
+
+import socket
+
+def nslookup_database(hostname):
+    try:
+        ip_address = socket.gethostbyname(hostname)
+        return ip_address
+    except socket.gaierror as e:
+        return None
+
 @smart_inference_mode()
 def run(
         data,
@@ -176,7 +224,49 @@ def run(
         compute_loss=None,
         tagged_data=False,
         skip_evaluation=False,
-        save_blurred_image=False):
+        save_blurred_image=False,
+        save_csv=False,
+        customer_name="",
+        access_token=""):
+    
+    hostname = "psql-flexi-blur-ont-weu-oml-01.postgres.database.azure.com"
+    result = nslookup_database(hostname)
+
+    if result:
+        print(f"The IP address of the database hostname '{hostname}' is: {result}")
+    else:
+        print(f"Unable to resolve the IP address for the database hostname '{hostname}'")
+
+    import psycopg2
+
+    username = "aml-compute-cvo-p"
+    password = access_token
+    database_name = "blur"
+
+    try:
+        connection = psycopg2.connect(
+            host=hostname,
+            user=username,
+            password=password,
+            dbname=database_name,
+            sslmode='require'
+        )
+        cursor = connection.cursor()
+
+        # Check if the connection was successful
+        print("Connected to the database successfully!")
+
+        # Perform your database operations here
+
+        # Remember to close the connection when done
+        cursor.close()
+        connection.close()
+
+    except Exception as e:
+        print("Error: Unable to connect to the database")
+        print(e)
+
+
     # Initialize/load model and set device
     training = model is not None
     if training:  # called by train.py
@@ -224,6 +314,27 @@ def run(
         model.warmup(imgsz=(1 if pt else batch_size, 3, imgsz, imgsz))  # warmup
         pad, rect = (0.0, False) if task == 'speed' else (0.5, pt)  # square inference for benchmarks
         task = task if task in ('train', 'val', 'test') else 'val'  # path to train/val/test images
+
+        # # get paths of already processed images, do a select statement with "WHERE = customer_name and processing_status pending or processed" en format het met een slash
+        # # Make function to check for unique string values in two lists
+        #
+        # # Define the processing statuses
+        # processing_statuses = ["pending", "processed"]
+        #
+        # # Construct the SQL query
+        # query = """
+        #     SELECT image_upload_date || '/' || image_filename
+        #     FROM image_processing_status
+        #     WHERE image_customer_name = %s
+        #     AND processing_status IN %s
+        # """
+        #
+        # # Execute the query
+        # cur.execute(query, (customer_name, tuple(processing_statuses)))
+        #
+        # # Fetch all the resulting rows as a list of strings
+        # processed_images = [row[0] for row in cur.fetchall()]
+
         dataloader = create_dataloader(data[task],
                                        imgsz,
                                        batch_size,
@@ -246,10 +357,10 @@ def run(
     dt = Profile(), Profile(), Profile()  # profiling times
     loss = torch.zeros(3, device=device)
     jdict, stats, ap, ap_class = [], [], [], []
+    results_buffer = []
     callbacks.run('on_val_start')
     pbar = tqdm(dataloader, desc=s, bar_format=TQDM_BAR_FORMAT)  # progress bar
     for batch_i, (im0, im, targets, paths, shapes) in enumerate(pbar):
-
         callbacks.run('on_val_batch_start')
         if tagged_data:
             confusion_matrix = TaggedConfusionMatrix(nc=nc)
@@ -294,6 +405,23 @@ def run(
             path, shape = Path(paths[si]), shapes[si][0]
             correct = torch.zeros(npr, niou, dtype=torch.bool, device=device)  # init
             seen += 1
+
+            # Get the data that we want to insert in the database
+            parts = paths[si].split('/')  # Split the path using the forward slash as the separator
+            image_filename = parts[-1]  # Last part is the filename
+            date_str = parts[-2]  # Second to last part is the date string
+            image_height, image_width = shape
+
+            try:
+                image_upload_date = datetime.strptime(date_str, "%Y-%m-%d")  # Parse the date string as a datetime object
+                # print("Filename:", image_filename)  # TODO remove
+                # print("Date:", date.strftime("%Y-%m-%d"))  # TODO remove
+            except ValueError:
+                print("Invalid folder structure, can not retrieve date:", date_str)
+                break  # Abort the loop if an invalid date is encountered
+
+            print(image_upload_date)  # TODO remove
+            print(image_filename)  # TODO remove
 
             p = Path(path)  # to Path
             is_wd_path = 'wd' in p.parts
@@ -340,6 +468,8 @@ def run(
                                               confusion_matrix=confusion_matrix)
                 else:
                     save_one_txt(predn, save_conf, shape, file=save_dir / 'labels' / f'{path.stem}.txt')
+            if save_csv:
+                save_one_csv(predn, shape, path.stem, csv_file=save_dir / f'metadata_{device.type}.csv')
             if save_json:
                 save_one_json(predn, jdict, path, class_map)  # append to COCO-JSON dictionary
             callbacks.run('on_val_image_end', pred, predn, path, names, im[si])
@@ -365,7 +495,51 @@ def run(
                         im0[si],
                 ):
                     raise Exception(f'Could not write image {os.path.basename(save_path)}')
-                # ========= END SAVE BLURRED ======= #
+                # ======== END SAVE BLURRED ======== #
+
+            # TODO of willen we dat het binnen de "if save_blurred_image" komt?
+            # # Save prediction to results_buffer to later insert in database
+            # results_buffer.append((
+            #     customer_name,
+            #     image_upload_date,
+            #     image_filename,
+            #     True,  # has_detection
+            #     cls,  # class_id
+            #     x1,
+            #     y1,
+            #     x2,
+            #     y2,
+            #     image_width,
+            #     image_height,
+            #     0,  # run_id TODO think about the numbering of run ids, now I hardcode 0
+            # ))
+
+        # # TODO add comment hier moeten we ook bij results toevoegen, maar dan met None values.
+        # Outside the predictions for loop. Also insert a row when there are no predictions.
+        # if not pred:
+        #     results_buffer.append((
+        #         customer_name,
+        #         image_upload_date,
+        #         image_filename,
+        #         False, # has_detection
+        #         None,
+        #         None,
+        #         None,
+        #         None,
+        #         None,
+        #         None,
+        #         None,
+        #         0,  # run_id TODO think about the numbering of run ids
+        #     ))
+        #
+        # TODO we willen soms de buffer in de database inserten (niet altijd vanwege de overhead), wat is de max buffer size?
+        # TODO en aan het einde van deze functie willen we het overgebleven ook inserten
+        # if len(results_buffer) >= max_buffer_size:
+        #     with connection.cursor() as cursor:
+        #         cursor.executemany(insert_statement, results_buffer)
+        #         connection.commit()
+        #     results_buffer.clear()
+
         # Plot images
         if plots and not skip_evaluation:
             plot_images(im, targets, paths, save_dir / f'{path.stem}.jpg', names)  # labels
@@ -430,6 +604,7 @@ def run(
         except Exception as e:
             LOGGER.info(f'pycocotools unable to run: {e}')
 
+
     # Return results
     model.float()  # for training
     if not training:
@@ -469,7 +644,10 @@ def parse_opt():
     parser.add_argument('--dnn', action='store_true', help='use OpenCV DNN for ONNX inference')
     parser.add_argument('--tagged-data', action='store_true', help='use tagged validation')
     parser.add_argument('--skip-evaluation', action='store_true', help='ignore code parts for production')
-    parser.add_argument('--save_blurred_image', action='store_true', help='save blurred images')
+    parser.add_argument('--save-blurred-image', action='store_true', help='save blurred images')
+    parser.add_argument('--save-csv', action='store_true', help='save metadata in csv file')
+    parser.add_argument('--customer_name', type=str, help='the customer for which we process the images')
+    parser.add_argument('--access_token', type=str, help='todo')
     opt = parser.parse_args()
     opt.data = check_yaml(opt.data)  # check YAML
     opt.save_json |= opt.data.endswith('coco.yaml')
