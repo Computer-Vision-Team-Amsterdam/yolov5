@@ -54,11 +54,12 @@ def create_connection():
             db_url = f"postgresql://{os.environ['POSTGRES_USER']}:{os.environ['POSTGRES_PASSWORD']}@{os.environ['POSTGRES_HOST']}/{os.environ['POSTGRES_DB']}"
         else:
             db_url = make_connection_string()
-        engine = create_engine(db_url)
 
         # Create and open a session
         engine = create_engine(db_url)
         Session = sessionmaker(bind=engine)
+
+        LOGGER.info(f"Successfully created database connection.")
 
         with Session() as session:
             return engine, session
