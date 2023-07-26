@@ -462,6 +462,12 @@ def img2label_paths(img_paths):
     return [sb.join(x.rsplit(sa, 1)).rsplit('.', 1)[0] + '.txt' for x in img_paths]
 
 
+def extract_folder_and_filename(path):
+    # Function to extract the last folder and file name from the path
+    folder, filename = os.path.split(path)
+    return os.path.join(os.path.basename(folder), filename)
+
+
 class LoadImagesAndLabels(Dataset):
     # YOLOv5 train_loader/val_loader, loads images and labels for training and validation
     cache_version = 0.6  # dataset labels *.cache version
@@ -514,10 +520,11 @@ class LoadImagesAndLabels(Dataset):
             images_to_process = sorted(x.replace('/', os.sep) for x in f if x.split('.')[-1].lower() in IMG_FORMATS)
 
             # Create a list of images to be processed that are not in the list of processed images
-            self.im_files = [image for image in images_to_process if image not in processed_images]
+            self.im_files = [image for image in images_to_process if extract_folder_and_filename(image) not in processed_images]
 
-            # self.img_files = sorted([x for x in f if x.suffix[1:].lower() in IMG_FORMATS])  # pathlib
-            assert self.im_files, f'{prefix}No (new) images found' # TODO maybe make this as raise?
+            if not self.im_files:
+                raise Exception(f'{prefix}No (new) images found')
+
         except Exception as e:
             raise Exception(f'{prefix}Error loading data from {path}: {e}\n{HELP_URL}') from e
 
