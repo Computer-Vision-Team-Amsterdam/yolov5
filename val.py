@@ -111,26 +111,6 @@ def save_one_txt(predn, save_conf, shape, file):
             f.write(('%g ' * len(line)).rstrip() % line + '\n')
 
 
-def save_one_csv(predn, shape, filename, csv_file):
-    # Save one txt result
-    gn = torch.tensor(shape)[[1, 0, 1, 0]]  # normalization gain whwh
-    for *xyxy, conf, cls in predn.tolist():
-        xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
-
-        # Round the values in xywh to 3 decimal places
-        xywh = [round(x, 3) for x in xywh]
-
-        line = (filename, *xywh, cls)  # label format
-        with open(csv_file, 'a') as f:
-            writer = csv.writer(f)
-
-            # Write header row if file is empty
-            if f.tell() == 0:
-                writer.writerow(['filename', 'x', 'y', 'w', 'h', 'class'])
-
-            writer.writerow(line)
-
-
 def save_one_json(predn, jdict, path, class_map):
     # Save one JSON result {"image_id": 42, "category_id": 18, "bbox": [258.15, 41.29, 348.26, 243.78], "score": 0.236}
     image_id = int(path.stem) if path.stem.isnumeric() else path.stem
@@ -217,7 +197,6 @@ def run(
         tagged_data=False,
         skip_evaluation=True,
         save_blurred_image=False,
-        save_csv=False,
         customer_name=""):
     # Initialize/load model and set device
     training = model is not None
@@ -450,8 +429,6 @@ def run(
                                               confusion_matrix=confusion_matrix)
                 else:
                     save_one_txt(predn, save_conf, shape, file=save_dir / 'labels' / f'{path.stem}.txt')
-            if save_csv:
-                save_one_csv(predn, shape, path.stem, csv_file=save_dir / f'metadata_{device.type}.csv')
             if save_json:
                 save_one_json(predn, jdict, path, class_map)  # append to COCO-JSON dictionary
             callbacks.run('on_val_image_end', pred, predn, path, names, im[si])
