@@ -31,7 +31,7 @@ def get_db_access_token(client_id):
 
 
 def make_connection_string():
-    # Load the JSON file
+    # Load the JSON file, this is in the root of the Blurring-as-a-Service project
     with open('database.json') as f:
         config = json.load(f)
 
