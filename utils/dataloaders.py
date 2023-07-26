@@ -1053,7 +1053,11 @@ def verify_image_label(args):
                 if f.read() != b'\xff\xd9':  # corrupt JPEG
                     ImageOps.exif_transpose(Image.open(im_file)).save(im_file, 'JPEG', subsampling=0, quality=100)
                     msg = f'{prefix}WARNING ⚠️ {im_file}: corrupt JPEG restored and saved'
+    except Exception as e:
+        # Stop the process immediately when there is an exception loading an image
+        raise e
 
+    try:
         # verify labels
         if os.path.isfile(lb_file):
             nf = 1  # label found
@@ -1089,7 +1093,7 @@ def verify_image_label(args):
         return im_file, lb, shape, segments, nm, nf, ne, nc, msg
     except Exception as e:
         nc = 1
-        msg = f'{prefix}WARNING ⚠️ {im_file}: ignoring corrupt image/label: {e}'
+        msg = f'{prefix}WARNING ⚠️ {im_file}: ignoring corrupt label: {e}'
         return [None, None, None, None, nm, nf, ne, nc, msg]
 
 
