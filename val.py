@@ -210,7 +210,6 @@ def run(
         device = select_device(device, batch_size=batch_size)
 
         # Directories
-        input_dir = ""
         if LOCAL_RUN:
             save_dir = Path('/container/landing_zone/output')
             input_dir = '/container/landing_zone/input_structured/'
@@ -637,7 +636,6 @@ def parse_opt():
     parser.add_argument('--tagged-data', action='store_true', help='use tagged validation')
     parser.add_argument('--skip-evaluation', action='store_true', help='ignore code parts for production')
     parser.add_argument('--save-blurred-image', action='store_true', help='save blurred images')
-    parser.add_argument('--save-csv', action='store_true', help='save metadata in csv file')
     parser.add_argument('--customer-name', type=str, default='data_office', help='the customer for which we process the images')
     opt = parser.parse_args()
     opt.data = check_yaml(opt.data)  # check YAML
