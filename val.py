@@ -214,6 +214,9 @@ def run(
         if LOCAL_RUN:
             save_dir = Path('/container/landing_zone/output')
             input_dir = '/container/landing_zone/input_structured/'
+        else:
+            save_dir = increment_path(Path(project) / name, exist_ok=exist_ok)  # increment run
+            input_dir = ""
 
         (save_dir / 'labels' if save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
         if tagged_data:
