@@ -65,7 +65,8 @@ from utils.metrics import ConfusionMatrix, TaggedConfusionMatrix, ap_per_class, 
 from utils.plots import output_to_target, plot_images, plot_val_study
 from utils.torch_utils import select_device, smart_inference_mode
 
-LOCAL_RUN = True
+# Use the following repo for local run https://github.com/Computer-Vision-Team-Amsterdam/yolov5-local-docker
+LOCAL_RUN = False
 
 def save_one_txt_and_one_json(predn, save_conf, shape, file, json_file, confusion_matrix):
     """
@@ -209,13 +210,10 @@ def run(
         device = select_device(device, batch_size=batch_size)
 
         # Directories
+        input_dir = ""
         if LOCAL_RUN:
             save_dir = Path('/container/landing_zone/output')
             input_dir = '/container/landing_zone/input_structured/'
-        else:
-            save_dir = increment_path(Path(project) / name, exist_ok=exist_ok)  # increment run
-            input_dir = ""
-
 
         (save_dir / 'labels' if save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
         if tagged_data:
