@@ -5,84 +5,94 @@ import json
 from sqlalchemy import create_engine, Column, String, Boolean, Date, Integer, Float
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.declarative import declarative_base
 
 from utils.general import LOGGER
 
-LOCAL_RUN = False
 
+class DBConfigSQLAlchemy:
+    Base = declarative_base()
 
-def get_db_access_token(client_id):
-    # Authenticate using Managed Identity (MSI)
-    try:
-        command = ["az", "login", "--identity", "--username", client_id]
-        subprocess.check_call(command)
-    except subprocess.CalledProcessError as e:
-        print("Error during 'az login --identity':", e)
-        raise e
+    def __init__(self):
+        pass
 
-    # Execute Azure CLI command to get the access token
-    command = ["az", "account", "get-access-token", "--resource-type", "oss-rdbms"]
-    output = subprocess.check_output(command)
+    def _get_db_access_token(self, client_id):
+        # Authenticate using Managed Identity (MSI)
+        try:
+            command = ["az", "login", "--identity", "--username", client_id]
+            subprocess.check_call(command)
+        except subprocess.CalledProcessError as e:
+            print("Error during 'az login --identity':", e)
+            raise e
 
-    # Parse the output to retrieve the access token
-    access_token = json.loads(output)["accessToken"]
+        # Execute Azure CLI command to get the access token
+        command = ["az", "account", "get-access-token", "--resource-type", "oss-rdbms"]
+        output = subprocess.check_output(command)
 
-    return access_token
+        # Parse the output to retrieve the access token
+        access_token = json.loads(output)["accessToken"]
 
+        return access_token
 
-def make_connection_string():
-    # Load the JSON file, this is in the root of the Blurring-as-a-Service project
-    with open('database.json') as f:
-        config = json.load(f)
+    def _get_database_connection_string(self):
+        """
+        Gets the connection string for the PostgreSQL database.
 
-    # Retrieve values from the JSON
-    hostname = config["hostname"]
-    username = config["username"]
-    database_name = config["database_name"]
-    client_id = config["client_id"]
-    password = get_db_access_token(client_id)
-
-    db_url = f"postgresql://{username}:{password}@{hostname}/{database_name}"
-
-    return db_url
-
-
-def create_connection():
-    try:
-        # Create the engine
-        if LOCAL_RUN:
+        The method first checks if the code is running locally. If it is,
+        it retrieves the PostgreSQL credentials from environment variables.
+        Otherwise, it loads the credentials from a JSON file in the project root.
+        """
+        if os.environ.get('POSTGRES_USER'):
+            # Local run, use environment variables for credentials
             db_url = f"postgresql://{os.environ['POSTGRES_USER']}:{os.environ['POSTGRES_PASSWORD']}@{os.environ['POSTGRES_HOST']}/{os.environ['POSTGRES_DB']}"
         else:
-            db_url = make_connection_string()
+            # Production run, load credentials from the JSON file
+            with open('database.json') as f:
+                config = json.load(f)
 
-        # Create and open a session
-        engine = create_engine(db_url)
-        Session = sessionmaker(bind=engine)
+            # Retrieve values from the JSON
+            hostname = config["hostname"]
+            username = config["username"]
+            database_name = config["database_name"]
+            client_id = config["client_id"]
 
-        LOGGER.info(f"Successfully created database connection.")
+            # Get the password using the client_id from a secure source
+            password = self._get_db_access_token(client_id)
 
-        with Session() as session:
-            return engine, session
+            db_url = f"postgresql://{username}:{password}@{hostname}/{database_name}"
 
-    except SQLAlchemyError as e:
-        # Handle any exceptions that occur during connection creation
-        LOGGER.error(f"Error creating database connection: {str(e)}")
-        raise e
+        return db_url
 
-
-def close_connection(engine, session):
-    try:
-        # Close the session
-        session.close()
-
-    except SQLAlchemyError as e:
-        LOGGER.error(f"Error closing database session: {str(e)}")
-        raise e
-
-    finally:
+    def create_connection(self):
         try:
-            # Dispose the engine
-            engine.dispose()
+            # Create the engine
+            db_url = self._get_database_connection_string()
+            engine = create_engine(db_url)
+            Session = sessionmaker(bind=engine)
+
+            LOGGER.info(f"Successfully created database connection.")
+
+            with Session() as session:
+                return engine, session
+
         except SQLAlchemyError as e:
-            LOGGER.error(f"Error disposing the database engine: {str(e)}")
+            # Handle any exceptions that occur during connection creation
+            LOGGER.error(f"Error creating database connection: {str(e)}")
             raise e
+
+    def close_connection(self, engine, session):
+        try:
+            # Close the session
+            session.close()
+
+        except SQLAlchemyError as e:
+            LOGGER.error(f"Error closing database session: {str(e)}")
+            raise e
+
+        finally:
+            try:
+                # Dispose the engine
+                engine.dispose()
+            except SQLAlchemyError as e:
+                LOGGER.error(f"Error disposing the database engine: {str(e)}")
+                raise e

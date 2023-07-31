@@ -38,7 +38,7 @@ if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))  # add ROOT to PATH
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 
-from database.database_handler import create_connection, close_connection
+from database.database_handler import DBConfigSQLAlchemy
 from database.tables import ImageProcessingStatus, DetectionInformation
 from models.common import DetectMultiBackend
 from utils.callbacks import Callbacks
@@ -244,6 +244,11 @@ def run(
     iouv = torch.linspace(0.5, 0.95, 10, device=device)  # iou vector for mAP@0.5:0.95
     niou = iouv.numel()
 
+    # Create a DBConfigSQLAlchemy object
+    db_config = DBConfigSQLAlchemy()
+    # Create the database connection
+    engine, session = db_config.create_connection()
+
     # Dataloader
     if not training:
         if pt and not single_cls:  # check --weights are trained on --data
@@ -253,9 +258,6 @@ def run(
         model.warmup(imgsz=(1 if pt else batch_size, 3, imgsz, imgsz))  # warmup
         pad, rect = (0.0, False) if task == 'speed' else (0.5, pt)  # square inference for benchmarks
         task = task if task in ('train', 'val', 'test') else 'val'  # path to train/val/test images
-
-        # Create the database connection
-        engine, session = create_connection()
 
         # Define the processing statuses
         processing_statuses = ["inprogress", "processed"]
@@ -313,7 +315,7 @@ def run(
 
         except SQLAlchemyError as e:
             # Handle the exception
-            close_connection(engine, session)
+            db_config.close_connection(engine, session)
             raise e
 
     seen = 0
@@ -537,6 +539,9 @@ def run(
             plot_images(im, output_to_target(preds), paths, save_dir / f'{path.stem}_pred.jpg', names)  # pred
 
         callbacks.run('on_val_batch_end', batch_i, im, targets, paths, shapes, preds)
+
+    # Close the DB connection
+    db_config.close_connection(engine, session)
 
     # Compute metrics
     if not skip_evaluation:

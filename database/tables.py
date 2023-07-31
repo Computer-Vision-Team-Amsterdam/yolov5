@@ -1,8 +1,7 @@
 from sqlalchemy import Column, String, Boolean, Date, Integer, Float
-from .base import Base
+from .database_handler import DBConfigSQLAlchemy
 
-
-class ImageProcessingStatus(Base):
+class ImageProcessingStatus(DBConfigSQLAlchemy.Base):
     __tablename__ = 'image_processing_status'
     __table_args__ = {'schema': 'private_schema_blur'}  # Add the schema here
 
@@ -12,7 +11,7 @@ class ImageProcessingStatus(Base):
     processing_status = Column(String)
 
 
-class DetectionInformation(Base):
+class DetectionInformation(DBConfigSQLAlchemy.Base):
     __tablename__ = "detection_information"
     __table_args__ = {'schema': 'private_schema_blur'}  # Add the schema here
 
