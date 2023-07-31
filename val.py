@@ -351,7 +351,7 @@ def run(
     jdict, stats, ap, ap_class = [], [], [], []
     callbacks.run('on_val_start')
     pbar = tqdm(dataloader, desc=s, bar_format=TQDM_BAR_FORMAT)  # progress bar
-    for batch_i, (im0, im, targets, paths, shapes, img_orig) in enumerate(pbar):
+    for batch_i, (im0, im, targets, paths, shapes, im_orig) in enumerate(pbar):
         callbacks.run('on_val_batch_start')
         if tagged_data:
             confusion_matrix = TaggedConfusionMatrix(nc=nc)
@@ -464,10 +464,10 @@ def run(
             for *xyxy, conf, cls in pred_clone.tolist():
                 x1, y1 = int(xyxy[0]), int(xyxy[1])
                 x2, y2 = int(xyxy[2]), int(xyxy[3])
-                area_to_blur = img_orig[si][y1:y2, x1:x2]
+                area_to_blur = im_orig[si][y1:y2, x1:x2]
 
                 blurred = cv2.GaussianBlur(area_to_blur, (135, 135), 0)
-                img_orig[si][y1:y2, x1:x2] = blurred
+                im_orig[si][y1:y2, x1:x2] = blurred
 
                 # Create an instance of DetectionInformation
                 detection_info = DetectionInformation(
@@ -507,7 +507,7 @@ def run(
 
                 if not cv2.imwrite(
                         save_path,
-                        img_orig[si],
+                        im_orig[si],
                 ):
                     raise Exception(f'Could not write image {os.path.basename(save_path)}')
             # ======== END SAVE BLURRED ======== #
