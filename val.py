@@ -422,8 +422,8 @@ def run(
             if single_cls:
                 pred[:, 5] = 0
             predn = pred.clone()
-            pred_clone = pred.clone()
-            scale_boxes(im[si].shape[1:], predn[:, :4], shape, shapes[si][1])  # native-space pred
+            pred_clone = pred.clone() # TODO maybe just use predn
+            scale_boxes(im[si].shape[1:], predn[:, :4], shape, shapes[si][1])  # native-space pred # TODO this is doing nothing
 
             # Evaluate
             if not skip_evaluation:
@@ -456,20 +456,18 @@ def run(
                 save_one_json(predn, jdict, path, class_map)  # append to COCO-JSON dictionary
             callbacks.run('on_val_image_end', pred, predn, path, names, im[si])
 
-            # TODO validate this line!
-            # TODO What does im contain
-            pred_clone[:, :4] = scale_boxes(im.shape[2:], pred_clone[:, :4],
-                                            im0[si].shape).round()  # TODO why not im[si].shape[2:]
+            pred_clone[:, :4] = scale_boxes(im[si].shape[1:], pred_clone[:, :4],
+                                            shape, shapes[si][1])
 
             image_filename, image_upload_date = parse_image_path(paths[si])
 
             for *xyxy, conf, cls in pred_clone.tolist():
                 x1, y1 = int(xyxy[0]), int(xyxy[1])
                 x2, y2 = int(xyxy[2]), int(xyxy[3])
-                area_to_blur = im0[si][y1:y2, x1:x2]
+                area_to_blur = img_orig[si][y1:y2, x1:x2]
 
                 blurred = cv2.GaussianBlur(area_to_blur, (135, 135), 0)
-                im0[si][y1:y2, x1:x2] = blurred
+                img_orig[si][y1:y2, x1:x2] = blurred
 
                 # Create an instance of DetectionInformation
                 detection_info = DetectionInformation(
@@ -509,7 +507,7 @@ def run(
 
                 if not cv2.imwrite(
                         save_path,
-                        im0[si],
+                        img_orig[si],
                 ):
                     raise Exception(f'Could not write image {os.path.basename(save_path)}')
             # ======== END SAVE BLURRED ======== #
