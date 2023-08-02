@@ -24,7 +24,6 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-import csv
 import numpy as np
 import torch
 from tqdm import tqdm
@@ -247,7 +246,7 @@ def run(
     # Create a DBConfigSQLAlchemy object
     db_config = DBConfigSQLAlchemy()
     # Create the database connection
-    engine, session = db_config.create_connection()
+    db_config.create_connection()
 
     # Dataloader
     if not training:
@@ -262,18 +261,26 @@ def run(
         # Define the processing statuses
         processing_statuses = ["inprogress", "processed"]
 
-        # Construct the query to get all rows with a certain processing status
-        query = session.query(
-            func.date(ImageProcessingStatus.image_upload_date).label('upload_date'),
-            ImageProcessingStatus.image_filename
-        ) \
-        .filter(
-            ImageProcessingStatus.image_customer_name == customer_name,
-            ImageProcessingStatus.processing_status.in_(processing_statuses)
-        )
+        # Perform database operations using the 'session'
+        # The session will be automatically closed at the end of this block
+        with db_config.get_session() as session:
+            try:
+                # Construct the query to get all rows with a certain processing status
+                query = session.query(
+                    func.date(ImageProcessingStatus.image_upload_date).label('upload_date'),
+                    ImageProcessingStatus.image_filename
+                ) \
+                .filter(
+                    ImageProcessingStatus.image_customer_name == customer_name,
+                    ImageProcessingStatus.processing_status.in_(processing_statuses)
+                )
 
-        # Execute the query and fetch the results
-        result = query.all()
+                # Execute the query and fetch the results
+                result = query.all()
+            except SQLAlchemyError as e:
+                # Handle the exception
+                db_config.close_connection()
+                raise e
 
         # Extract the processed images from the result
         if LOCAL_RUN:
@@ -293,30 +300,33 @@ def run(
                                        workers=workers,
                                        prefix=colorstr(f'{task}: '))
 
-        # Lock the images that we are processing in this run with the state "inprogress"
-        try:
-            # Iterate over the image_files list
-            for image_path in image_files:
-                image_filename, image_upload_date = parse_image_path(image_path)
+        # Perform database operations using the 'session'
+        # The session will be automatically closed at the end of this block
+        with db_config.get_session() as session:
+            # Lock the images that we are processing in this run with the state "inprogress"
+            try:
+                # Iterate over the image_files list
+                for image_path in image_files:
+                    image_filename, image_upload_date = parse_image_path(image_path)
 
-                # Create a new instance of the ImageProcessingStatus model
-                image_processing_status = ImageProcessingStatus(
-                    image_filename=image_filename,
-                    image_upload_date=image_upload_date,
-                    image_customer_name=customer_name,
-                    processing_status="inprogress"
-                )
+                    # Create a new instance of the ImageProcessingStatus model
+                    image_processing_status = ImageProcessingStatus(
+                        image_filename=image_filename,
+                        image_upload_date=image_upload_date,
+                        image_customer_name=customer_name,
+                        processing_status="inprogress"
+                    )
 
-                # Add the instance to the session
-                session.add(image_processing_status)
+                    # Add the instance to the session
+                    session.add(image_processing_status)
 
-            # Commit the changes to the database
-            session.commit()
+                # Commit the changes to the database
+                session.commit()
 
-        except SQLAlchemyError as e:
-            # Handle the exception
-            db_config.close_connection(engine, session)
-            raise e
+            except SQLAlchemyError as e:
+                # Handle the exception
+                db_config.close_connection()
+                raise e
 
     seen = 0
     if not tagged_data:
@@ -450,35 +460,38 @@ def run(
                 blurred = cv2.GaussianBlur(area_to_blur, (135, 135), 0)
                 im0[si][y1:y2, x1:x2] = blurred
 
-                # Create an instance of DetectionInformation
-                detection_info = DetectionInformation(
-                    image_customer_name=customer_name,
-                    image_upload_date=image_upload_date,
-                    image_filename=image_filename,
-                    has_detection=True,
-                    class_id=int(cls),
-                    x_norm=x1,
-                    y_norm=y1,
-                    w_norm=x2,
-                    h_norm=y2,
-                    image_width=image_width,
-                    image_height=image_height,
-                    run_id=0
-                )
+                # Perform database operations using the 'session'
+                # The session will be automatically closed at the end of this block
+                with db_config.get_session() as session:
+                    # Create an instance of DetectionInformation
+                    detection_info = DetectionInformation(
+                        image_customer_name=customer_name,
+                        image_upload_date=image_upload_date,
+                        image_filename=image_filename,
+                        has_detection=True,
+                        class_id=int(cls),
+                        x_norm=x1,
+                        y_norm=y1,
+                        w_norm=x2,
+                        h_norm=y2,
+                        image_width=image_width,
+                        image_height=image_height,
+                        run_id=0
+                    )
 
-                # Add the instance to the session
-                session.add(detection_info)
+                    # Add the instance to the session
+                    session.add(detection_info)
 
-                # Create a new instance of the ImageProcessingStatus model
-                image_processing_status = ImageProcessingStatus(
-                    image_filename=image_filename,
-                    image_upload_date=image_upload_date,
-                    image_customer_name=customer_name,
-                    processing_status="processed"
-                )
+                    # Create a new instance of the ImageProcessingStatus model
+                    image_processing_status = ImageProcessingStatus(
+                        image_filename=image_filename,
+                        image_upload_date=image_upload_date,
+                        image_customer_name=customer_name,
+                        processing_status="processed"
+                    )
 
-                # Merge the instance into the session (updates if already exists)
-                session.merge(image_processing_status)
+                    # Merge the instance into the session (updates if already exists)
+                    session.merge(image_processing_status)
 
             # ======== SAVE BLURRED ======== #
             if save_blurred_image:
@@ -496,42 +509,45 @@ def run(
         # Filter and iterate over paths with no detection in current batch
         false_paths = [path for path in image_detections if not image_detections[path]]
 
-        # Process images with no detection
-        for false_path in false_paths:
-            image_filename, image_upload_date = parse_image_path(false_path)
+        # Perform database operations using the 'session'
+        # The session will be automatically closed at the end of this block
+        with db_config.get_session() as session:
+            # Process images with no detection
+            for false_path in false_paths:
+                image_filename, image_upload_date = parse_image_path(false_path)
 
-            # Create an instance of DetectionInformation
-            detection_info = DetectionInformation(
-                image_customer_name=customer_name,
-                image_upload_date=image_upload_date,
-                image_filename=image_filename,
-                has_detection=False,
-                class_id=None,
-                x_norm=None,
-                y_norm=None,
-                w_norm=None,
-                h_norm=None,
-                image_width=None,
-                image_height=None,
-                run_id=0
-            )
+                # Create an instance of DetectionInformation
+                detection_info = DetectionInformation(
+                    image_customer_name=customer_name,
+                    image_upload_date=image_upload_date,
+                    image_filename=image_filename,
+                    has_detection=False,
+                    class_id=None,
+                    x_norm=None,
+                    y_norm=None,
+                    w_norm=None,
+                    h_norm=None,
+                    image_width=None,
+                    image_height=None,
+                    run_id=0
+                )
 
-            # Add the instance to the session
-            session.add(detection_info)
+                # Add the instance to the session
+                session.add(detection_info)
 
-            # Create a new instance of the ImageProcessingStatus model
-            image_processing_status = ImageProcessingStatus(
-                image_filename=image_filename,
-                image_upload_date=image_upload_date,
-                image_customer_name=customer_name,
-                processing_status="processed"
-            )
+                # Create a new instance of the ImageProcessingStatus model
+                image_processing_status = ImageProcessingStatus(
+                    image_filename=image_filename,
+                    image_upload_date=image_upload_date,
+                    image_customer_name=customer_name,
+                    processing_status="processed"
+                )
 
-            # Merge the instance into the session (updates if already exists)
-            session.merge(image_processing_status)
+                # Merge the instance into the session (updates if already exists)
+                session.merge(image_processing_status)
 
-        # Commit the changes to the database
-        session.commit()
+            # Commit the changes to the database
+            session.commit()
 
         # Plot images
         if plots and not skip_evaluation:
@@ -541,7 +557,7 @@ def run(
         callbacks.run('on_val_batch_end', batch_i, im, targets, paths, shapes, preds)
 
     # Close the DB connection
-    db_config.close_connection(engine, session)
+    db_config.close_connection()
 
     # Compute metrics
     if not skip_evaluation:

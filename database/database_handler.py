@@ -14,7 +14,8 @@ class DBConfigSQLAlchemy:
     Base = declarative_base()
 
     def __init__(self):
-        pass
+        self.engine = None
+        self.session_maker = None
 
     def _get_db_access_token(self, client_id):
         # Authenticate using Managed Identity (MSI)
@@ -67,32 +68,26 @@ class DBConfigSQLAlchemy:
         try:
             # Create the engine
             db_url = self._get_database_connection_string()
-            engine = create_engine(db_url)
-            Session = sessionmaker(bind=engine)
+            self.engine = create_engine(db_url)
+            self.session_maker = sessionmaker(bind=self.engine)
 
-            LOGGER.info(f"Successfully created database connection.")
-
-            with Session() as session:
-                return engine, session
+            LOGGER.info(f"Successfully created database sessionmaker.")
 
         except SQLAlchemyError as e:
             # Handle any exceptions that occur during connection creation
-            LOGGER.error(f"Error creating database connection: {str(e)}")
+            LOGGER.error(f"Error creating database sessionmaker: {str(e)}")
             raise e
 
-    def close_connection(self, engine, session):
+    def get_session(self):
+        if self.session_maker is None:
+            raise RuntimeError("SessionMaker has not been created. Call create_connection() first.")
+
+        return self.session_maker()
+
+    def close_connection(self):
         try:
-            # Close the session
-            session.close()
-
+            # Dispose the engine
+            self.engine.dispose()
         except SQLAlchemyError as e:
-            LOGGER.error(f"Error closing database session: {str(e)}")
+            LOGGER.error(f"Error disposing the database engine: {str(e)}")
             raise e
-
-        finally:
-            try:
-                # Dispose the engine
-                engine.dispose()
-            except SQLAlchemyError as e:
-                LOGGER.error(f"Error disposing the database engine: {str(e)}")
-                raise e
