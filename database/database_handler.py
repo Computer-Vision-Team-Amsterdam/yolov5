@@ -1,6 +1,7 @@
 import os
 import subprocess
 import json
+from contextlib import contextmanager
 
 from sqlalchemy import create_engine, Column, String, Boolean, Date, Integer, Float
 from sqlalchemy.orm import sessionmaker
@@ -91,3 +92,15 @@ class DBConfigSQLAlchemy:
         except SQLAlchemyError as e:
             LOGGER.error(f"Error disposing the database engine: {str(e)}")
             raise e
+
+    @contextmanager
+    def managed_session(self):
+        session = self.get_session()
+        try:
+            yield session  # This line yields the 'session' to the with block.
+            session.commit()  # Executed when the with block completes
+        except SQLAlchemyError as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()

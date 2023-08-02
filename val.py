@@ -302,31 +302,21 @@ def run(
 
         # Perform database operations using the 'session'
         # The session will be automatically closed at the end of this block
-        with db_config.get_session() as session:
+        with db_config.managed_session() as session:
             # Lock the images that we are processing in this run with the state "inprogress"
-            try:
-                # Iterate over the image_files list
-                for image_path in image_files:
-                    image_filename, image_upload_date = parse_image_path(image_path)
+            for image_path in image_files:
+                image_filename, image_upload_date = parse_image_path(image_path)
 
-                    # Create a new instance of the ImageProcessingStatus model
-                    image_processing_status = ImageProcessingStatus(
-                        image_filename=image_filename,
-                        image_upload_date=image_upload_date,
-                        image_customer_name=customer_name,
-                        processing_status="inprogress"
-                    )
+                # Create a new instance of the ImageProcessingStatus model
+                image_processing_status = ImageProcessingStatus(
+                    image_filename=image_filename,
+                    image_upload_date=image_upload_date,
+                    image_customer_name=customer_name,
+                    processing_status="inprogress"
+                )
 
-                    # Add the instance to the session
-                    session.add(image_processing_status)
-
-                # Commit the changes to the database
-                session.commit()
-
-            except SQLAlchemyError as e:
-                # Handle the exception
-                db_config.close_connection()
-                raise e
+                # Add the instance to the session
+                session.add(image_processing_status)
 
     seen = 0
     if not tagged_data:
@@ -452,17 +442,17 @@ def run(
 
             image_filename, image_upload_date = parse_image_path(paths[si])
 
-            for *xyxy, conf, cls in pred_clone.tolist():
-                x1, y1 = int(xyxy[0]), int(xyxy[1])
-                x2, y2 = int(xyxy[2]), int(xyxy[3])
-                area_to_blur = im0[si][y1:y2, x1:x2]
+            # Perform database operations using the 'session'
+            # The session will be automatically closed at the end of this block
+            with db_config.managed_session() as session:
+                for *xyxy, conf, cls in pred_clone.tolist():
+                    x1, y1 = int(xyxy[0]), int(xyxy[1])
+                    x2, y2 = int(xyxy[2]), int(xyxy[3])
+                    area_to_blur = im0[si][y1:y2, x1:x2]
 
-                blurred = cv2.GaussianBlur(area_to_blur, (135, 135), 0)
-                im0[si][y1:y2, x1:x2] = blurred
+                    blurred = cv2.GaussianBlur(area_to_blur, (135, 135), 0)
+                    im0[si][y1:y2, x1:x2] = blurred
 
-                # Perform database operations using the 'session'
-                # The session will be automatically closed at the end of this block
-                with db_config.get_session() as session:
                     # Create an instance of DetectionInformation
                     detection_info = DetectionInformation(
                         image_customer_name=customer_name,
@@ -511,7 +501,7 @@ def run(
 
         # Perform database operations using the 'session'
         # The session will be automatically closed at the end of this block
-        with db_config.get_session() as session:
+        with db_config.managed_session() as session:
             # Process images with no detection
             for false_path in false_paths:
                 image_filename, image_upload_date = parse_image_path(false_path)
@@ -545,9 +535,6 @@ def run(
 
                 # Merge the instance into the session (updates if already exists)
                 session.merge(image_processing_status)
-
-            # Commit the changes to the database
-            session.commit()
 
         # Plot images
         if plots and not skip_evaluation:
