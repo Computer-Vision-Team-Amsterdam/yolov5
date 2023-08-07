@@ -515,9 +515,11 @@ class LoadImagesAndLabels(Dataset):
 
                 else:
                     raise FileNotFoundError(f'{prefix}{p} does not exist')
+            # images_to_process are all images that the application found in the storage account (paths in the txt file)
             images_to_process = sorted(x.replace('/', os.sep) for x in f if x.split('.')[-1].lower() in IMG_FORMATS)
 
             # Create a list of images to be processed that are not in the list of processed images
+            # processed_images are all the images in the database that have the label "inprogress" or "processed"
             self.im_files = [image for image in images_to_process if extract_folder_and_filename(image) not in processed_images]
 
             if not self.im_files:
