@@ -197,7 +197,7 @@ def run(
         tagged_data=False,
         skip_evaluation=True,
         save_blurred_image=False,
-        customer_name=""):
+        customer_name=''):
     # Initialize/load model and set device
     training = model is not None
 
@@ -435,10 +435,9 @@ def run(
                 save_one_json(predn, jdict, path, class_map)  # append to COCO-JSON dictionary
             callbacks.run('on_val_image_end', pred, predn, path, names, im[si])
 
-            # TODO validate this line!
-            # TODO What does im contain
+            # TODO the following code contains a bug and will be fixed in PR #13
             pred_clone[:, :4] = scale_boxes(im.shape[2:], pred_clone[:, :4],
-                                            im0[si].shape).round()  # TODO why not im[si].shape[2:]
+                                            im0[si].shape).round()
 
             image_filename, image_upload_date = parse_image_path(paths[si])
 
@@ -483,7 +482,7 @@ def run(
                     # Merge the instance into the session (updates if already exists)
                     session.merge(image_processing_status)
 
-            # ======== SAVE BLURRED ======== #
+            # Save the blurred image
             if save_blurred_image:
                 folder_path = os.path.dirname(save_path)
                 if not os.path.exists(folder_path):
@@ -494,7 +493,6 @@ def run(
                         im0[si],
                 ):
                     raise Exception(f'Could not write image {os.path.basename(save_path)}')
-            # ======== END SAVE BLURRED ======== #
 
         # Filter and iterate over paths with no detection in current batch
         false_paths = [path for path in image_detections if not image_detections[path]]
