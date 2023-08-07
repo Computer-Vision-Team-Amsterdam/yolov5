@@ -211,7 +211,7 @@ def run(
         # Directories
         if LOCAL_RUN:
             save_dir = Path('/container/landing_zone/output')
-            input_dir = '/container/landing_zone/input_structured/'
+            input_dir = Path('/container/landing_zone/input_structured/')
         else:
             save_dir = increment_path(Path(project) / name, exist_ok=exist_ok)  # increment run
             input_dir = ""
@@ -283,10 +283,9 @@ def run(
                 raise e
 
         # Extract the processed images from the result
-        if LOCAL_RUN:
-            processed_images = [f"{input_dir}{row.upload_date}/{row.image_filename}" for row in result]
-        else:
-            processed_images = [f"{row.upload_date}/{row.image_filename}" for row in result]
+        processed_images = [
+            f"{input_dir / row.upload_date / row.image_filename}" if input_dir else f"{row.upload_date}/{row.image_filename}"
+            for row in result]
 
         image_files, dataloader, _ = create_dataloader(data[task],
                                        processed_images,
@@ -642,7 +641,7 @@ def parse_opt():
     parser.add_argument('--tagged-data', action='store_true', help='use tagged validation')
     parser.add_argument('--skip-evaluation', action='store_true', help='ignore code parts for production')
     parser.add_argument('--save-blurred-image', action='store_true', help='save blurred images')
-    parser.add_argument('--customer-name', type=str, default='data_office', help='the customer for which we process the images')
+    parser.add_argument('--customer-name', type=str, default='example_customer', help='the customer for which we process the images')
     opt = parser.parse_args()
     opt.data = check_yaml(opt.data)  # check YAML
     opt.save_json |= opt.data.endswith('coco.yaml')
