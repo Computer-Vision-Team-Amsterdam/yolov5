@@ -27,4 +27,4 @@ class DetectionInformation(DBConfigSQLAlchemy.Base):
     h_norm = Column(Float)
     image_width = Column(Integer)
     image_height = Column(Integer)
-    run_id = Column(Integer)
+    run_id = Column(String)
