@@ -203,7 +203,8 @@ def run(
             save_dir = Path('/container/landing_zone/output')
             input_dir = Path('/container/landing_zone/input_structured/')
         else:
-            save_dir = increment_path(Path(project) / name, exist_ok=exist_ok)  # increment run
+            save_dir = Path(save_dir)
+            save_dir.mkdir(parents=True, exist_ok=True)
             input_dir = ""
 
         (save_dir / 'labels' if save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
@@ -443,7 +444,7 @@ def run(
             if save_blurred_image:
                 # TODO the following code contains a bug and will be fixed later
                 pred_clone[:, :4] = scale_boxes(im.shape[2:], pred_clone[:, :4],
-                                           im0[si].shape).round()
+                                                im0[si].shape).round()
 
                 for *xyxy, conf, cls in pred_clone.tolist():
                     x1, y1 = int(xyxy[0]), int(xyxy[1])
@@ -455,8 +456,14 @@ def run(
 
                     if skip_evaluation:
                         # Get variables to later insert into the database
-                        image_filename, image_upload_date = \
+                        image_filename, image_upload_date, image_upload_date_time = \
                             DBConfigSQLAlchemy.extract_upload_date(paths[si])
+
+                        # Extract the filename from save_path
+                        file_name = Path(save_path).name
+
+                        # Add image_upload_date_time before the file name
+                        save_path_with_time = str(Path(save_path).parent / image_upload_date_time / file_name)
 
                         # Perform database operations using the 'session'
                         # The session will be automatically closed at the end of this block
@@ -491,15 +498,15 @@ def run(
                             # Merge the instance into the session (updates if already exists)
                             session.merge(image_processing_status)
 
-                folder_path = os.path.dirname(save_path)
+                folder_path = os.path.dirname(save_path_with_time)
                 if not os.path.exists(folder_path):
                     os.makedirs(folder_path)
 
                 if not cv2.imwrite(
-                        save_path,
+                        save_path_with_time,
                         im0[si],
                 ):
-                    raise Exception(f'Could not write image {os.path.basename(save_path)}')
+                    raise Exception(f'Could not write image {os.path.basename(save_path_with_time)}')
 
         if skip_evaluation:
             # Filter and iterate over paths with no detection in current batch
@@ -510,7 +517,7 @@ def run(
             with db_config.managed_session() as session:
                 # Process images with no detection
                 for false_path in false_paths:
-                    image_filename, image_upload_date = DBConfigSQLAlchemy.extract_upload_date(false_path)
+                    image_filename, image_upload_date, image_upload_date_time = DBConfigSQLAlchemy.extract_upload_date(false_path)
 
                     # Create an instance of DetectionInformation
                     detection_info = DetectionInformation(
