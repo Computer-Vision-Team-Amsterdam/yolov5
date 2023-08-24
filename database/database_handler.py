@@ -70,7 +70,7 @@ class DBConfigSQLAlchemy:
             LOGGER.info(f"Invalid folder structure, can not retrieve date: {date_time_str}")
             raise e
 
-        return image_filename, image_upload_date, image_upload_date_time
+        return image_filename, image_upload_date, date_time_str
 
     def create_connection(self):
         try:
