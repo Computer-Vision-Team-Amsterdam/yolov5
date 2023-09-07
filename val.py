@@ -264,7 +264,7 @@ def run(
 
             # Perform database operations using the 'session'
             # The session will be automatically closed at the end of this block
-            with db_config.get_session() as session:
+            with db_config.managed_session() as session:
                 try:
                     # Construct the query to get all rows with a certain processing status
                     query = session.query(
