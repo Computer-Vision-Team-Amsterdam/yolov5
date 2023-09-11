@@ -157,6 +157,38 @@ def process_batch(detections, labels, iouv):
     return torch.tensor(correct, dtype=torch.bool, device=iouv.device)
 
 
+def exception_handler(func):
+    def wrapper(*args, **kwargs):
+        db_username = kwargs.get('db_username', '')
+        db_name = kwargs.get('db_name', '')
+        db_hostname = kwargs.get('db_hostname', '')
+        # Check if 'skip_evaluation' is provided as an argument in kwargs, and if not, default to False
+        skip_evaluation = kwargs.get('skip_evaluation', False)
+
+        if skip_evaluation:
+            # Validate if database credentials are provided
+            if not db_username or not db_name or not db_hostname:
+                raise ValueError('Please provide database credentials.')
+
+            # Create a DBConfigSQLAlchemy object
+            db_config = DBConfigSQLAlchemy(db_username, db_hostname, db_name)
+            # Create the database connection
+            db_config.create_connection()
+            # Start the token renewal thread
+            db_config.start_token_renewal_thread()
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            # Handle the exception here
+            # You can insert the error 'e' into the database or log it
+            print(f"Exception caught: {e}")
+            # Re-raise the exception
+            if skip_evaluation:
+                # TODO add code to insert data in database
+            raise e
+    return wrapper
+
+@exception_handler
 @smart_inference_mode()
 def run(
         data,
