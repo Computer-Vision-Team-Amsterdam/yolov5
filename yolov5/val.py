@@ -165,8 +165,8 @@ def exception_handler(func):
         db_name = kwargs.get('db_name', '')
         db_hostname = kwargs.get('db_hostname', '')
         run_id = kwargs.get('run_id', 'default_run_id')
-        trained_yolo_model = kwargs.get('trained_yolo_model', '')
-        start_time = kwargs.get('start_time', '')
+        trained_yolo_model = kwargs.get('trained_yolo_model', 'default')  # TODO
+        start_time = kwargs.get('start_time', '')  # TODO original start_date of Azure ML job
         # Check if 'skip_evaluation' is provided as an argument in kwargs, and if not, default to False
         skip_evaluation = kwargs.get('skip_evaluation', False)
         try:
