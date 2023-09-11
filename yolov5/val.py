@@ -30,6 +30,7 @@ import torch
 from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 from tqdm import tqdm
+from datetime import datetime
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
@@ -38,8 +39,9 @@ if str(ROOT) not in sys.path:
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 
 from baas_utils.database_handler import DBConfigSQLAlchemy
-from baas_utils.database_tables import DetectionInformation, ImageProcessingStatus
+from baas_utils.database_tables import DetectionInformation, ImageProcessingStatus, BatchRunInformation
 from baas_utils.parse import extract_upload_date
+
 from models.common import DetectMultiBackend
 from utils.callbacks import Callbacks
 from utils.dataloaders import create_dataloader
@@ -162,20 +164,11 @@ def exception_handler(func):
         db_username = kwargs.get('db_username', '')
         db_name = kwargs.get('db_name', '')
         db_hostname = kwargs.get('db_hostname', '')
+        run_id = kwargs.get('run_id', 'default_run_id')
+        trained_yolo_model = kwargs.get('trained_yolo_model', '')
+        start_time = kwargs.get('start_time', '')
         # Check if 'skip_evaluation' is provided as an argument in kwargs, and if not, default to False
         skip_evaluation = kwargs.get('skip_evaluation', False)
-
-        if skip_evaluation:
-            # Validate if database credentials are provided
-            if not db_username or not db_name or not db_hostname:
-                raise ValueError('Please provide database credentials.')
-
-            # Create a DBConfigSQLAlchemy object
-            db_config = DBConfigSQLAlchemy(db_username, db_hostname, db_name)
-            # Create the database connection
-            db_config.create_connection()
-            # Start the token renewal thread
-            db_config.start_token_renewal_thread()
         try:
             return func(*args, **kwargs)
         except Exception as e:
@@ -184,7 +177,33 @@ def exception_handler(func):
             print(f"Exception caught: {e}")
             # Re-raise the exception
             if skip_evaluation:
+                # Validate if database credentials are provided
+                if not db_username or not db_name or not db_hostname:
+                    raise ValueError('Please provide database credentials.')
+
+                end_time = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+
+                # Create a DBConfigSQLAlchemy object
+                db_config = DBConfigSQLAlchemy(db_username, db_hostname, db_name)
+                # Create the database connection
+                db_config.create_connection()
+                # Start the token renewal thread
+                db_config.start_token_renewal_thread()
+
                 # TODO add code to insert data in database
+                # Perform database operations using the 'session'
+                # The session will be automatically closed at the end of this block
+                with db_config.managed_session() as session:
+                    # Create an instance of BatchRunInformation
+                    batch_info = BatchRunInformation(run_id=run_id,
+                                                     start_time=start_time,
+                                                     end_time=end_time,
+                                                     trained_yolo_model=trained_yolo_model,
+                                                     success=False,
+                                                     error_code=e)
+
+                    # Add the instance to the session
+                    session.add(batch_info)
             raise e
     return wrapper
 

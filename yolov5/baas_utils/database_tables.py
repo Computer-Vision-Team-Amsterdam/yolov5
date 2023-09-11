@@ -37,6 +37,7 @@ class BatchRunInformation(DBConfigSQLAlchemy.Base):
 
     run_id = Column(String, primary_key=True)
     start_time = Column(Date)
-    trained_yolo_model = Column(Date)
+    end_time = Column(Date)
+    trained_yolo_model = Column(String)
     success = Column(Boolean)
     error_code = Column(String)
