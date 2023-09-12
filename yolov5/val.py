@@ -190,7 +190,6 @@ def exception_handler(func):
                 # Start the token renewal thread
                 db_config.start_token_renewal_thread()
 
-                # TODO add code to insert data in database
                 # Perform database operations using the 'session'
                 # The session will be automatically closed at the end of this block
                 with db_config.managed_session() as session:
@@ -200,7 +199,7 @@ def exception_handler(func):
                                                      end_time=end_time,
                                                      trained_yolo_model=trained_yolo_model,
                                                      success=False,
-                                                     error_code=e)
+                                                     error_code=str(e))
 
                     # Add the instance to the session
                     session.add(batch_info)
@@ -666,6 +665,23 @@ def run(
     maps = np.zeros(nc) + map
     for i, c in enumerate(ap_class):
         maps[c] = ap[i]
+    if skip_evaluation:
+        end_time = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+
+        # Perform database operations using the 'session'
+        # The session will be automatically closed at the end of this block
+        with db_config.managed_session() as session:
+            # Create an instance of BatchRunInformation
+            batch_info = BatchRunInformation(run_id=run_id,
+                                             start_time=start_time,
+                                             end_time=end_time,
+                                             trained_yolo_model=trained_yolo_model,
+                                             success=True,
+                                             error_code=None)
+
+            # Add the instance to the session
+            session.add(batch_info)
+
     if skip_evaluation:
         return (mp, mr, map50, map, []), maps, t
     return (mp, mr, map50, map, *(loss.cpu() / len(dataloader)).tolist()), maps, t
