@@ -159,6 +159,12 @@ def process_batch(detections, labels, iouv):
     return torch.tensor(correct, dtype=torch.bool, device=iouv.device)
 
 
+def get_current_time():
+    current_time = datetime.now()
+    current_time_str = current_time.strftime("%Y-%m-%d %H:%M:%S")  # Format the datetime as a string
+    return current_time_str
+
+
 def exception_handler(func):
     def wrapper(*args, **kwargs):
         db_username = kwargs.get('db_username', '')
@@ -181,8 +187,6 @@ def exception_handler(func):
                 if not db_username or not db_name or not db_hostname:
                     raise ValueError('Please provide database credentials.')
 
-                end_time = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-
                 # Create a DBConfigSQLAlchemy object
                 db_config = DBConfigSQLAlchemy(db_username, db_hostname, db_name)
                 # Create the database connection
@@ -196,7 +200,7 @@ def exception_handler(func):
                     # Create an instance of BatchRunInformation
                     batch_info = BatchRunInformation(run_id=run_id,
                                                      start_time=start_time,
-                                                     end_time=end_time,
+                                                     end_time=get_current_time(),
                                                      trained_yolo_model=trained_yolo_model,
                                                      success=False,
                                                      error_code=str(e))
@@ -666,15 +670,13 @@ def run(
     for i, c in enumerate(ap_class):
         maps[c] = ap[i]
     if skip_evaluation:
-        end_time = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-
         # Perform database operations using the 'session'
         # The session will be automatically closed at the end of this block
         with db_config.managed_session() as session:
             # Create an instance of BatchRunInformation
             batch_info = BatchRunInformation(run_id=run_id,
                                              start_time=start_time,
-                                             end_time=end_time,
+                                             end_time=get_current_time(),
                                              trained_yolo_model=trained_yolo_model,
                                              success=True,
                                              error_code=None)
