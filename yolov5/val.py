@@ -40,7 +40,7 @@ ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 
 from baas_utils.database_handler import DBConfigSQLAlchemy
 from baas_utils.database_tables import DetectionInformation, ImageProcessingStatus, BatchRunInformation
-from baas_utils.parse import extract_upload_date
+from baas_utils.date_utils import extract_upload_date, get_current_time
 
 from models.common import DetectMultiBackend
 from utils.callbacks import Callbacks
@@ -157,12 +157,6 @@ def process_batch(detections, labels, iouv):
                 matches = matches[np.unique(matches[:, 0], return_index=True)[1]]
             correct[matches[:, 1].astype(int), i] = True
     return torch.tensor(correct, dtype=torch.bool, device=iouv.device)
-
-
-def get_current_time():
-    current_time = datetime.now()
-    current_time_str = current_time.strftime("%Y-%m-%d %H:%M:%S")  # Format the datetime as a string
-    return current_time_str
 
 
 def exception_handler(func):
