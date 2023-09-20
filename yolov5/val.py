@@ -177,7 +177,7 @@ def exception_handler(func):
             db_name = kwargs.get('db_name', '')
             db_hostname = kwargs.get('db_hostname', '')
             run_id = kwargs.get('run_id', 'default_run_id')
-            trained_yolo_model = kwargs.get('trained_yolo_model', 'default')
+            trained_yolo_model = kwargs.get('weights', 'default')
             start_time = kwargs.get('start_time', '')
             # Check if 'skip_evaluation' is provided as an argument in kwargs, and if not, default to False
             skip_evaluation = kwargs.get('skip_evaluation', False)
@@ -191,8 +191,6 @@ def exception_handler(func):
                 db_config = DBConfigSQLAlchemy(db_username, db_hostname, db_name)
                 # Create the database connection
                 db_config.create_connection()
-                # Start the token renewal thread
-                db_config.start_token_renewal_thread()
 
                 # Perform database operations using the 'session'
                 # The session will be automatically closed at the end of this block
@@ -251,7 +249,6 @@ def run(
         db_username='',
         db_hostname='',
         db_name='',
-        trained_yolo_model='',
         start_time=''):
     # Initialize/load model and set device
     training = model is not None
@@ -679,7 +676,7 @@ def run(
             batch_info = BatchRunInformation(run_id=run_id,
                                              start_time=start_time,
                                              end_time=get_current_time(),
-                                             trained_yolo_model=trained_yolo_model,
+                                             trained_yolo_model=weights,
                                              success=True,
                                              error_code=None)
 
