@@ -462,8 +462,7 @@ def run(
 
                         if skip_evaluation:
                             # Get variables to later insert into the database
-                            image_filename, image_upload_date = \
-                                DBConfigSQLAlchemy.extract_upload_date(paths[si])
+                            image_filename, image_upload_date = extract_upload_date(paths[si])
 
                             # The session will be automatically closed at the end of this block
                             with db_config.managed_session() as session:
@@ -513,7 +512,7 @@ def run(
             with db_config.managed_session() as session:
                 # Process images with no detection
                 for false_path in false_paths:
-                    image_filename, image_upload_date = DBConfigSQLAlchemy.extract_upload_date(false_path)
+                    image_filename, image_upload_date = extract_upload_date(false_path)
 
                     # Create an instance of DetectionInformation
                     detection_info = DetectionInformation(image_customer_name=customer_name,
