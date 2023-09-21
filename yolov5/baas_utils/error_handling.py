@@ -23,6 +23,12 @@ def exception_handler(func):
             skip_evaluation = kwargs.get('skip_evaluation', False)
 
             if skip_evaluation:
+                try:
+                    trained_yolo_model = os.path.split(trained_yolo_model)[-1]
+                except Exception as e:
+                    print(f"Error while getting trained_yolo_model name: {str(e)}")
+                    trained_yolo_model = ""
+
                 # Validate if database credentials are provided
                 if not db_username or not db_name or not db_hostname:
                     raise ValueError('Please provide database credentials.')

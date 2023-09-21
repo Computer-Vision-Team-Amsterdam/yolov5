@@ -618,6 +618,12 @@ def run(
     for i, c in enumerate(ap_class):
         maps[c] = ap[i]
     if skip_evaluation:
+        try:
+            trained_yolo_model = os.path.split(weights)[-1]
+        except Exception as e:
+            print(f"Error while getting trained_yolo_model name: {str(e)}")
+            trained_yolo_model = ""
+
         # Perform database operations using the 'session'
         # The session will be automatically closed at the end of this block
         with db_config.managed_session() as session:
@@ -625,7 +631,7 @@ def run(
             batch_info = BatchRunInformation(run_id=run_id,
                                              start_time=start_time,
                                              end_time=get_current_time(),
-                                             trained_yolo_model=os.path.split(weights)[-1],
+                                             trained_yolo_model=trained_yolo_model,
                                              success=True,
                                              error_code=None)
 
