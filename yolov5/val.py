@@ -625,7 +625,7 @@ def run(
             batch_info = BatchRunInformation(run_id=run_id,
                                              start_time=start_time,
                                              end_time=get_current_time(),
-                                             trained_yolo_model=weights,
+                                             trained_yolo_model=os.path.split(weights)[-1],
                                              success=True,
                                              error_code=None)
 

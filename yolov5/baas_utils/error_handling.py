@@ -1,3 +1,5 @@
+import os
+
 from .database_handler import DBConfigSQLAlchemy
 from .database_tables import BatchRunInformation
 from .date_utils import get_current_time
@@ -37,7 +39,7 @@ def exception_handler(func):
                     batch_info = BatchRunInformation(run_id=run_id,
                                                      start_time=start_time,
                                                      end_time=get_current_time(),
-                                                     trained_yolo_model=trained_yolo_model,
+                                                     trained_yolo_model=os.path.split(trained_yolo_model)[-1],
                                                      success=False,
                                                      error_code=str(e))
 
