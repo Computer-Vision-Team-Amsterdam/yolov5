@@ -1,6 +1,6 @@
 # YOLOv5 for Computer Vision Team - Amsterdam
 
-This repository is a fork of the YOLOv5 implementation tailored for the use of the Computer Vision Team in Amsterdam. It builds upon the YOLOv5 framework and introduces custom modifications to work with Azure Machine Learning, database integrations and tagged validation.
+This repository is a fork of the YOLOv5 implementation customized for the use of the Computer Vision Team in Amsterdam. It builds upon the YOLOv5 framework and introduces custom modifications to work with Azure Machine Learning, database integrations and tagged validation.
 
 For the original YOLOv5 documentation, please refer to [YOLOv5 README](YOLOv5_README.md).
 
