@@ -25,6 +25,8 @@ poetry install
 
 #### Tagged validation
 
+TODO what is tagged validation?
+
 The input structure is the same as when running yolo validation, but now the 
 labels files contain an extra column with the tagged class id. 
 
