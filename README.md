@@ -25,7 +25,9 @@ poetry install
 
 #### Tagged validation
 
-TODO what is tagged validation?
+To analyze bias in our data, we divided the categories "person" and "license_plate" into smaller groups. This is called "tagged validation." We added tags for gender, age, and skin tone to each label. Each combination of these tags was given a unique number, like 1 for "man/child/dark," 2 for "man/child/medium," and so on.
+
+Then, we included these numbers in our YOLO annotations. This way, we can see how well our model works in different situations by looking at the validation results.
 
 The input structure is the same as when running yolo validation, but now the 
 labels files contain an extra column with the tagged class id. 
@@ -37,7 +39,7 @@ Example of one txt file in `data/labels/val`:
 ```
 
 The indices from the 6th column are coming from the Azure COCO annotation file
-export from Data Labelling tool. First, we TODO?
+export from Data Labelling tool.
 
 To run validation:
 
@@ -83,8 +85,4 @@ This database.json file should include the following information:
 ``` 
     client_id:      client id of the managed identity in Azure
 ```
-
-#### Hyperparamters for panoramic images
-TODO
-
 
