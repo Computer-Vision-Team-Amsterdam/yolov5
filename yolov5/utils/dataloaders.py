@@ -462,6 +462,9 @@ def img2label_paths(img_paths):
 
 
 def extract_folder_and_filename(path):
+    # TODO
+    print("testtt")
+    print(path)
     # Function to extract the last folder and file name from the path
     folder, filename = os.path.split(path)
     return os.path.join(os.path.basename(folder), filename)
