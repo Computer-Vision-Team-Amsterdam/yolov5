@@ -268,7 +268,7 @@ def run(
 
         if skip_evaluation:
             # Define the processing statuses
-            processing_statuses = ['inprogress', 'processed']
+            processing_statuses = ['processed']
 
             # Perform database operations using the 'session'
             # The session will be automatically closed at the end of this block
