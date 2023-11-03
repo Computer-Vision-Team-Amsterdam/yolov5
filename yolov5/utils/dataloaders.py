@@ -526,6 +526,9 @@ class LoadImagesAndLabels(Dataset):
 
                 else:
                     raise FileNotFoundError(f'{prefix}{p} does not exist')
+            print("hier")
+            print(f)
+
             # images_to_process are all images that the application found in the storage account (paths in the txt file)
             images_to_process = sorted(x.replace('/', os.sep) for x in f if x.split('.')[-1].lower() in IMG_FORMATS)
 
