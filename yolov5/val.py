@@ -298,6 +298,9 @@ def run(
         else:
             processed_images = []
 
+        print("Nou")
+        print(processed_images)
+
         image_files, dataloader, _ = create_dataloader(data[task],
                                                        processed_images,
                                                        input_dir,
