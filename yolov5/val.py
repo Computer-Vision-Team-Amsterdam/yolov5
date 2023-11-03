@@ -329,7 +329,7 @@ def run(
                                                                     processing_status='inprogress')
 
                     # Add the instance to the session
-                    session.add(image_processing_status)
+                    session.merge(image_processing_status)
 
     seen = 0
     if not tagged_data:

@@ -466,7 +466,7 @@ def extract_filename_with_subfolder(path):
         # Split the path at the first occurrence of "wd/INPUT"
         parts = path.split("wd/INPUT", 1)
         # Split into two parts, skipping the first Azure input storage part
-        filename_subfolder = parts[1].split("/", 2)[-1]
+        filename_subfolder = parts[1].split("/", 1)[-1]
 
         print("Test")
         print(filename_subfolder)
