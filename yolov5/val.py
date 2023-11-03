@@ -276,7 +276,7 @@ def run(
                 try:
                     # Construct the query to get all rows with a certain processing status
                     query = session.query(
-                        func.date(ImageProcessingStatus.image_upload_date).label('upload_date'),
+                        func.date(ImageProcessingStatus.image_upload_date).label('image_upload_date'),
                         ImageProcessingStatus.image_filename
                     ) \
                         .filter(
@@ -292,9 +292,15 @@ def run(
                     raise e
 
             # Extract the processed images from the result
-            processed_images = [
-                f'{input_dir / row.upload_date / row.image_filename}'
-                if input_dir else f'{row.upload_date}/{row.image_filename}' for row in result]
+            processed_images = []
+            for row in result:
+                formatted_date = datetime.strptime(row.image_upload_date, "%Y-%m-%d %H:%M:%S").strftime(
+                    "%Y-%m-%d_%H:%M:%S")
+                if input_dir:
+                    processed_image_path = input_dir / formatted_date / row.image_filename
+                else:
+                    processed_image_path = f'{formatted_date}/{row.image_filename}'
+                processed_images.append(processed_image_path)
         else:
             processed_images = []
 
@@ -329,7 +335,7 @@ def run(
                                                                     processing_status='inprogress')
 
                     # Add the instance to the session
-                    session.merge(image_processing_status)
+                    session.merge(image_processing_status) # TODO needs to be add
 
     seen = 0
     if not tagged_data:
