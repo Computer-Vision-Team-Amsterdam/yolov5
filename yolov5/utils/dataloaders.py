@@ -467,6 +467,8 @@ def extract_filename_with_subfolder(path):
         parts = path.split("wd/INPUT", 1)
         # Split into two parts, skipping the first Azure input storage part
         filename_subfolder = parts[1].split("/", 1)[-1]
+        print("filename_subfolder")
+        print(filename_subfolder)
     except Exception as e:
         raise e
 
@@ -505,6 +507,9 @@ class LoadImagesAndLabels(Dataset):
         self.path = path
         self.albumentations = Albumentations(size=img_size) if augment else None
 
+        print("processed_images")
+        print(processed_images)
+
         try:
             f = []  # image files
             for p in path if isinstance(path, list) else [path]:
@@ -532,6 +537,8 @@ class LoadImagesAndLabels(Dataset):
             self.im_files = [
                 image for image in images_to_process if extract_filename_with_subfolder(image) not in processed_images]
 
+            print("self.im_files")
+            print(self.im_files)
             if not self.im_files:
                 raise Exception(f'{prefix}No (new) images found')
 
