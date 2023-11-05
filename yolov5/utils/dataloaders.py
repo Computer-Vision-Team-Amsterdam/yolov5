@@ -467,9 +467,6 @@ def extract_filename_with_subfolder(path):
         parts = path.split("wd/INPUT", 1)
         # Split into two parts, skipping the first Azure input storage part
         filename_subfolder = parts[1].split("/", 1)[-1]
-
-        print("Test")
-        print(filename_subfolder)
     except Exception as e:
         raise e
 
@@ -526,14 +523,9 @@ class LoadImagesAndLabels(Dataset):
 
                 else:
                     raise FileNotFoundError(f'{prefix}{p} does not exist')
-            print("hier")
-            print(f)
 
             # images_to_process are all images that the application found in the storage account (paths in the txt file)
             images_to_process = sorted(x.replace('/', os.sep) for x in f if x.split('.')[-1].lower() in IMG_FORMATS)
-
-            print("jm")
-            print(images_to_process)
 
             # Create a list of images to be processed that are not in the list of processed images
             # processed_images are all the images in the database that have the label "inprogress" or "processed"

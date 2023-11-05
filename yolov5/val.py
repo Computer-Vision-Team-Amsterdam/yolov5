@@ -303,9 +303,6 @@ def run(
         else:
             processed_images = []
 
-        print("Nou")
-        print(processed_images)
-
         image_files, dataloader, _ = create_dataloader(data[task],
                                                        processed_images,
                                                        input_dir,
@@ -334,7 +331,7 @@ def run(
                                                                     processing_status='inprogress')
 
                     # Add the instance to the session
-                    session.merge(image_processing_status) # TODO needs to be add
+                    session.add(image_processing_status)
 
     seen = 0
     if not tagged_data:
