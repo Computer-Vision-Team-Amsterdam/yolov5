@@ -276,7 +276,7 @@ def run(
                 try:
                     # Construct the query to get all rows with a certain processing status
                     query = session.query(
-                        func.date(ImageProcessingStatus.image_upload_date).label('image_upload_date'),
+                        ImageProcessingStatus.image_upload_date,
                         ImageProcessingStatus.image_filename
                     ) \
                         .filter(
@@ -294,6 +294,8 @@ def run(
             # Extract the processed images from the result
             processed_images = []
             for row in result:
+                print("kn")
+                print(row.image_upload_date)
                 formatted_date = row.image_upload_date.strftime("%Y-%m-%d_%H:%M:%S")
                 if input_dir:
                     processed_image_path = input_dir / formatted_date / row.image_filename
