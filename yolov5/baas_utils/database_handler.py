@@ -5,7 +5,7 @@ import time
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, DatabaseError
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, timedelta
 
@@ -91,6 +91,8 @@ class DBConfigSQLAlchemy:
             except SQLAlchemyError as e:
                 # Roll back any uncommitted changes within current session to maintain data integrity.
                 session.rollback()
+                raise e
+            except DatabaseError as e:
                 # You can add a sleep here before the next retry
                 if retry < self.retry_count - 1:
                     LOGGER.info(f"Error with the connection to the database, retry after {self.retry_delay} seconds...")
