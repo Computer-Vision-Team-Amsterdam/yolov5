@@ -27,10 +27,8 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 from tqdm import tqdm
-from datetime import datetime
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
