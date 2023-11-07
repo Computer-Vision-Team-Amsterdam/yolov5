@@ -292,7 +292,7 @@ def run(
             # Extract the processed images from the result
             processed_images = []
             for row in result:
-                formatted_date = row.image_upload_date.strftime("%Y-%m-%d_%H:%M:%S")
+                formatted_date = row.image_upload_date.strftime("%Y-%m-%d_%H_%M_%S")
                 if input_dir:
                     processed_image_path = input_dir / formatted_date / row.image_filename
                 else:
