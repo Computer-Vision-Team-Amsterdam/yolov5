@@ -1,8 +1,9 @@
 import os
 
 from .database_handler import DBConfigSQLAlchemy
-from .database_tables import BatchRunInformation
+from .database_tables import BatchRunInformation, ImageProcessingStatus
 from .date_utils import get_current_time
+from sqlalchemy import and_
 
 from yolov5.utils.general import LOGGER
 
@@ -53,6 +54,19 @@ def exception_handler(func):
 
                     # Add the instance to the session
                     session.add(batch_info)
+
+            with db_config.managed_session() as session:
+                # Delete rows with "inprogress" status for the given run_id
+                session.query(ImageProcessingStatus) \
+                    .filter(
+                    and_(
+                        ImageProcessingStatus.processing_status == "inprogress",
+                        ImageProcessingStatus.run_id == run_id  # Add the run_id filter
+                    )
+                ) \
+                    .delete()
+
+                LOGGER.info(f"Deleted 'inprogress' rows for run_id: {run_id}")
 
             # Re-raise the exception
             raise e
