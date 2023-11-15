@@ -1,7 +1,7 @@
 import os
 
 from .database_handler import DBConfigSQLAlchemy
-from .database_tables import BatchRunInformation, ImageProcessingStatus
+from .database_tables import BatchRunInformation, ImageProcessingStatus, DetectionInformation
 from .date_utils import get_current_time
 from sqlalchemy import and_
 
@@ -55,18 +55,26 @@ def exception_handler(func):
                     # Add the instance to the session
                     session.add(batch_info)
 
-            with db_config.managed_session() as session:
-                # Delete rows with "inprogress" status for the given run_id
-                session.query(ImageProcessingStatus) \
-                    .filter(
-                    and_(
-                        ImageProcessingStatus.processing_status == "inprogress",
-                        ImageProcessingStatus.run_id == run_id  # Add the run_id filter
-                    )
-                ) \
-                    .delete()
+                with db_config.managed_session() as session:
+                    # Perform a join and delete rows with "inprogress" status for the given run_id 
+                    session.query(ImageProcessingStatus) \
+                        .join(
+                        DetectionInformation,
+                        and_(
+                            ImageProcessingStatus.image_customer_name == DetectionInformation.image_customer_name,
+                            ImageProcessingStatus.image_upload_date == DetectionInformation.image_upload_date,
+                            ImageProcessingStatus.image_filename == DetectionInformation.image_filename
+                        )
+                    ) \
+                        .filter(
+                        and_(
+                            ImageProcessingStatus.processing_status == "inprogress",
+                            DetectionInformation.run_id == run_id  # Add the run_id filter from DetectionInformation
+                        )
+                    ) \
+                        .delete()
 
-                LOGGER.info(f"Deleted 'inprogress' rows for run_id: {run_id}")
+                    LOGGER.info(f"Deleted 'inprogress' rows in ImageProcessingStatus for run_id: {run_id}")
 
             # Re-raise the exception
             raise e
