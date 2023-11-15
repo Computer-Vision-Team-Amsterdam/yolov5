@@ -56,23 +56,29 @@ def exception_handler(func):
                     session.add(batch_info)
 
                 with db_config.managed_session() as session:
-                    # Perform a join and delete rows with "inprogress" status for the given run_id 
-                    session.query(ImageProcessingStatus) \
-                        .join(
+                    # Subquery to identify rows to be deleted
+                    subquery = session.query(ImageProcessingStatus).join(
                         DetectionInformation,
                         and_(
                             ImageProcessingStatus.image_customer_name == DetectionInformation.image_customer_name,
                             ImageProcessingStatus.image_upload_date == DetectionInformation.image_upload_date,
                             ImageProcessingStatus.image_filename == DetectionInformation.image_filename
                         )
-                    ) \
-                        .filter(
+                    ).filter(
                         and_(
                             ImageProcessingStatus.processing_status == "inprogress",
-                            DetectionInformation.run_id == run_id  # Add the run_id filter from DetectionInformation
+                            DetectionInformation.run_id == run_id
                         )
-                    ) \
-                        .delete()
+                    ).subquery()
+
+                    # Perform deletion using the subquery
+                    session.query(ImageProcessingStatus).filter(
+                        and_(
+                            ImageProcessingStatus.image_customer_name == subquery.c.image_customer_name,
+                            ImageProcessingStatus.image_upload_date == subquery.c.image_upload_date,
+                            ImageProcessingStatus.image_filename == subquery.c.image_filename
+                        )
+                    ).delete(synchronize_session=False)
 
                     LOGGER.info(f"Deleted 'inprogress' rows in ImageProcessingStatus for run_id: {run_id}")
 
