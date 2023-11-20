@@ -518,33 +518,33 @@ def run(
             for false_path in false_paths:
                 image_filename, image_upload_date = extract_upload_date(false_path)
 
-                # # Create an instance of DetectionInformation
-                # detection_info = DetectionInformation(image_customer_name=customer_name,
-                #                                       image_upload_date=image_upload_date,
-                #                                       image_filename=image_filename,
-                #                                       has_detection=False,
-                #                                       class_id=None,
-                #                                       x_norm=None,
-                #                                       y_norm=None,
-                #                                       w_norm=None,
-                #                                       h_norm=None,
-                #                                       image_width=None,
-                #                                       image_height=None,
-                #                                       run_id=run_id,
-                #                                       conf_score=None)
-                #
-                # # Create a new instance of the ImageProcessingStatus model
-                # image_processing_status = ImageProcessingStatus(image_filename=image_filename,
-                #                                                 image_upload_date=image_upload_date,
-                #                                                 image_customer_name=customer_name,
-                #                                                 processing_status='processed')
-                #
-                # # The session will be automatically closed at the end of this block
-                # with db_config.managed_session() as session:
-                #     # Add the instance to the session
-                #     session.add(detection_info)
-                #     # Merge the instance into the session (updates if already exists)
-                #     session.merge(image_processing_status)
+                # Create an instance of DetectionInformation
+                detection_info = DetectionInformation(image_customer_name=customer_name,
+                                                      image_upload_date=image_upload_date,
+                                                      image_filename=image_filename,
+                                                      has_detection=False,
+                                                      class_id=None,
+                                                      x_norm=None,
+                                                      y_norm=None,
+                                                      w_norm=None,
+                                                      h_norm=None,
+                                                      image_width=None,
+                                                      image_height=None,
+                                                      run_id=run_id,
+                                                      conf_score=None)
+
+                # Create a new instance of the ImageProcessingStatus model
+                image_processing_status = ImageProcessingStatus(image_filename=image_filename,
+                                                                image_upload_date=image_upload_date,
+                                                                image_customer_name=customer_name,
+                                                                processing_status='processed')
+
+                # The session will be automatically closed at the end of this block
+                with db_config.managed_session() as session:
+                    # Add the instance to the session
+                    session.add(detection_info)
+                    # Merge the instance into the session (updates if already exists)
+                    session.merge(image_processing_status)
 
         # Plot images
         if plots and not skip_evaluation:
@@ -632,19 +632,19 @@ def run(
             LOGGER.info(f"Error while getting trained_yolo_model name: {str(e)}")
             trained_yolo_model = ""
 
-        # # Perform database operations using the 'session'
-        # # The session will be automatically closed at the end of this block
-        # with db_config.managed_session() as session:
-        #     # Create an instance of BatchRunInformation
-        #     batch_info = BatchRunInformation(run_id=run_id,
-        #                                      start_time=start_time,
-        #                                      end_time=get_current_time(),
-        #                                      trained_yolo_model=trained_yolo_model,
-        #                                      success=True,
-        #                                      error_code=None)
-        #
-        #     # Add the instance to the session
-        #     session.add(batch_info)
+        # Perform database operations using the 'session'
+        # The session will be automatically closed at the end of this block
+        with db_config.managed_session() as session:
+            # Create an instance of BatchRunInformation
+            batch_info = BatchRunInformation(run_id=run_id,
+                                             start_time=start_time,
+                                             end_time=get_current_time(),
+                                             trained_yolo_model=trained_yolo_model,
+                                             success=True,
+                                             error_code=None)
+
+            # Add the instance to the session
+            session.add(batch_info)
 
     if skip_evaluation:
         return (mp, mr, map50, map, []), maps, t
