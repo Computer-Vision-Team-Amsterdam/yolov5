@@ -504,7 +504,7 @@ def run(
                     os.makedirs(folder_path)
 
                 # Apply Gaussian blur to the original image only where the mask values are True
-                blurred_image = np.where(mask[..., None], cv2.GaussianBlur(im_orig[si], (135, 135), 0), im_orig[si])
+                blurred_image = np.where(mask, cv2.GaussianBlur(im_orig[si], (135, 135), 0), im_orig[si])
 
                 if not cv2.imwrite(save_path, blurred_image):
                     raise Exception(f'Could not write image {os.path.basename(save_path)}')
