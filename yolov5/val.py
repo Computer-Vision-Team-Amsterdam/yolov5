@@ -456,10 +456,9 @@ def run(
 
             # Get variables to later insert into the database
             image_filename, image_upload_date = extract_upload_date(paths[si])
-            
+
             if save_blurred_image:
                 batch_detection_info = []
-                batch_image_processing_status = []
                 # Create a mask filled with False values with the same shape as the original image
                 mask = np.zeros(im_orig[si].shape, dtype=bool)
 
