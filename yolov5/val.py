@@ -499,14 +499,6 @@ def run(
                         if batch_detection_info:
                             session.bulk_insert_mappings(DetectionInformation, batch_detection_info)
 
-                        image_processing_status = ImageProcessingStatus(image_filename=image_filename,
-                                                                        image_upload_date=image_upload_date,
-                                                                        image_customer_name=customer_name,
-                                                                        processing_status='processed')
-
-                        # Merge the instance into the session (updates if already exists)
-                        session.merge(image_processing_status)
-
                 folder_path = os.path.dirname(save_path)
                 if not os.path.exists(folder_path):
                     os.makedirs(folder_path)
@@ -516,6 +508,17 @@ def run(
 
                 if not cv2.imwrite(save_path, blurred_image):
                     raise Exception(f'Could not write image {os.path.basename(save_path)}')
+
+            # Batch insertions to the database
+            if skip_evaluation:
+                with db_config.managed_session() as session:
+                    image_processing_status = ImageProcessingStatus(image_filename=image_filename,
+                                                                    image_upload_date=image_upload_date,
+                                                                    image_customer_name=customer_name,
+                                                                    processing_status='processed')
+
+                    # Merge the instance into the session (updates if already exists)
+                    session.merge(image_processing_status)
 
         if skip_evaluation:
             # Filter and iterate over paths with no detection in current batch
