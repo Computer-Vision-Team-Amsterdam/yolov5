@@ -489,26 +489,23 @@ def run(
                                 'run_id': run_id,
                                 'conf_score': conf
                             })
-
-                            batch_image_processing_status.append({
-                                'image_filename': image_filename,
-                                'image_upload_date': image_upload_date,
-                                'image_customer_name': customer_name,
-                                'processing_status': 'processed'
-                            })
                     else:
                         LOGGER.debug('Area to blur is 0.')
 
                 # Batch insertions to the database
-                if skip_evaluation and batch_detection_info:
+                if skip_evaluation:
                     with db_config.managed_session() as session:
                         # Bulk insertion for DetectionInformation
                         if batch_detection_info:
                             session.bulk_insert_mappings(DetectionInformation, batch_detection_info)
 
-                        # Bulk merge for ImageProcessingStatus
-                        if batch_image_processing_status:
-                            session.bulk_merge(ImageProcessingStatus, batch_image_processing_status)
+                        image_processing_status = ImageProcessingStatus(image_filename=image_filename,
+                                                                        image_upload_date=image_upload_date,
+                                                                        image_customer_name=customer_name,
+                                                                        processing_status='processed')
+
+                        # Merge the instance into the session (updates if already exists)
+                        session.merge(image_processing_status)
 
                 folder_path = os.path.dirname(save_path)
                 if not os.path.exists(folder_path):
