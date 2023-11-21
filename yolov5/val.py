@@ -454,14 +454,14 @@ def run(
                 save_one_json(predn, jdict, path, class_map)  # append to COCO-JSON dictionary
             callbacks.run('on_val_image_end', pred, predn, path, names, im[si])
 
+            # Get variables to later insert into the database
+            image_filename, image_upload_date = extract_upload_date(paths[si])
+            
             if save_blurred_image:
                 batch_detection_info = []
                 batch_image_processing_status = []
                 # Create a mask filled with False values with the same shape as the original image
                 mask = np.zeros(im_orig[si].shape, dtype=bool)
-
-                # Get variables to later insert into the database
-                image_filename, image_upload_date = extract_upload_date(paths[si])
 
                 pred_clone[:, :4] = scale_boxes(im[si].shape[1:], pred_clone[:, :4], shape, shapes[si][1])
 
