@@ -455,19 +455,23 @@ def run(
             callbacks.run('on_val_image_end', pred, predn, path, names, im[si])
 
             if save_blurred_image:
-                # Get variables to later insert into the database
-                image_filename, image_upload_date = extract_upload_date(paths[si])
                 batch_detection_info = []
                 batch_image_processing_status = []
+                # Create a mask filled with False values with the same shape as the original image
+                mask = np.zeros(im_orig[si].shape, dtype=bool)
+
+                # Get variables to later insert into the database
+                image_filename, image_upload_date = extract_upload_date(paths[si])
+
                 pred_clone[:, :4] = scale_boxes(im[si].shape[1:], pred_clone[:, :4], shape, shapes[si][1])
+
                 for *xyxy, conf, cls in pred_clone.tolist():
                     x1, y1 = int(xyxy[0]), int(xyxy[1])
                     x2, y2 = int(xyxy[2]), int(xyxy[3])
 
                     if is_area_positive(x1, y1, x2, y2):
-                        area_to_blur = im_orig[si][y1:y2, x1:x2]
-                        blurred = cv2.GaussianBlur(area_to_blur, (135, 135), 0)
-                        im_orig[si][y1:y2, x1:x2] = blurred
+                        # Update the mask for the detected area to True
+                        mask[y1:y2, x1:x2] = True
 
                         if skip_evaluation:
                             batch_detection_info.append({
@@ -510,7 +514,10 @@ def run(
                 if not os.path.exists(folder_path):
                     os.makedirs(folder_path)
 
-                if not cv2.imwrite(save_path, im_orig[si]):
+                # Apply Gaussian blur to the original image only where the mask values are True
+                blurred_image = np.where(mask[..., None], cv2.GaussianBlur(im_orig[si], (135, 135), 0), im_orig[si])
+
+                if not cv2.imwrite(save_path, blurred_image):
                     raise Exception(f'Could not write image {os.path.basename(save_path)}')
 
         if skip_evaluation:
