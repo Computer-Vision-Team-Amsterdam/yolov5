@@ -455,60 +455,63 @@ def run(
             callbacks.run('on_val_image_end', pred, predn, path, names, im[si])
 
             if save_blurred_image:
+                # Get variables to later insert into the database
+                image_filename, image_upload_date = extract_upload_date(paths[si])
+                batch_detection_info = []
+                batch_image_processing_status = []
                 pred_clone[:, :4] = scale_boxes(im[si].shape[1:], pred_clone[:, :4], shape, shapes[si][1])
                 for *xyxy, conf, cls in pred_clone.tolist():
                     x1, y1 = int(xyxy[0]), int(xyxy[1])
                     x2, y2 = int(xyxy[2]), int(xyxy[3])
 
                     if is_area_positive(x1, y1, x2, y2):
-                        # area_to_blur = im_orig[si][y1:y2, x1:x2]
-                        # blurred = cv2.GaussianBlur(area_to_blur, (135, 135), 0)
-                        # im_orig[si][y1:y2, x1:x2] = blurred
+                        area_to_blur = im_orig[si][y1:y2, x1:x2]
+                        blurred = cv2.GaussianBlur(area_to_blur, (135, 135), 0)
+                        im_orig[si][y1:y2, x1:x2] = blurred
 
                         if skip_evaluation:
-                            # Get variables to later insert into the database
-                            image_filename, image_upload_date = extract_upload_date(paths[si])
+                            batch_detection_info.append({
+                                'image_customer_name': customer_name,
+                                'image_upload_date': image_upload_date,
+                                'image_filename': image_filename,
+                                'has_detection': True,
+                                'class_id': int(cls),
+                                'x_norm': x1,
+                                'y_norm': y1,
+                                'w_norm': x2,
+                                'h_norm': y2,
+                                'image_width': image_width,
+                                'image_height': image_height,
+                                'run_id': run_id,
+                                'conf_score': conf
+                            })
 
-                            # The session will be automatically closed at the end of this block
-                            with db_config.managed_session() as session:
-                                # Create an instance of DetectionInformation
-                                detection_info = DetectionInformation(image_customer_name=customer_name,
-                                                                      image_upload_date=image_upload_date,
-                                                                      image_filename=image_filename,
-                                                                      has_detection=True,
-                                                                      class_id=int(cls),
-                                                                      x_norm=x1,
-                                                                      y_norm=y1,
-                                                                      w_norm=x2,
-                                                                      h_norm=y2,
-                                                                      image_width=image_width,
-                                                                      image_height=image_height,
-                                                                      run_id=run_id,
-                                                                      conf_score=conf)
-
-                                # Add the instance to the session
-                                session.add(detection_info)
-
-                                # Create a new instance of the ImageProcessingStatus model
-                                image_processing_status = ImageProcessingStatus(image_filename=image_filename,
-                                                                                image_upload_date=image_upload_date,
-                                                                                image_customer_name=customer_name,
-                                                                                processing_status='processed')
-
-                                # Merge the instance into the session (updates if already exists)
-                                session.merge(image_processing_status)
+                            batch_image_processing_status.append({
+                                'image_filename': image_filename,
+                                'image_upload_date': image_upload_date,
+                                'image_customer_name': customer_name,
+                                'processing_status': 'processed'
+                            })
                     else:
                         LOGGER.debug('Area to blur is 0.')
 
-                # folder_path = os.path.dirname(save_path)
-                # if not os.path.exists(folder_path):
-                #     os.makedirs(folder_path)
-                #
-                # if not cv2.imwrite(
-                #         save_path,
-                #         im_orig[si],
-                # ):
-                #     raise Exception(f'Could not write image {os.path.basename(save_path)}')
+                # Batch insertions to the database
+                if skip_evaluation and batch_detection_info:
+                    with db_config.managed_session() as session:
+                        # Bulk insertion for DetectionInformation
+                        if batch_detection_info:
+                            session.bulk_insert_mappings(DetectionInformation, batch_detection_info)
+
+                        # Bulk merge for ImageProcessingStatus
+                        if batch_image_processing_status:
+                            session.bulk_merge(ImageProcessingStatus, batch_image_processing_status)
+
+                folder_path = os.path.dirname(save_path)
+                if not os.path.exists(folder_path):
+                    os.makedirs(folder_path)
+
+                if not cv2.imwrite(save_path, im_orig[si]):
+                    raise Exception(f'Could not write image {os.path.basename(save_path)}')
 
         if skip_evaluation:
             # Filter and iterate over paths with no detection in current batch
