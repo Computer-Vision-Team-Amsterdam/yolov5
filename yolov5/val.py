@@ -70,7 +70,6 @@ from torchvision.utils import save_image
 # Use the following repo for local run https://github.com/Computer-Vision-Team-Amsterdam/yolov5-local-docker
 LOCAL_RUN = False
 
-
 def is_area_positive(x1, y1, x2, y2):
     if x1 == x2 or y1 == y2:
         return False
@@ -200,6 +199,8 @@ def run(
         db_name='',
         start_time='',
         no_inverted_colors=False):
+    jm = 0
+
     # Initialize/load model and set device
     training = model is not None
     if training:  # called by train.py
@@ -458,7 +459,6 @@ def run(
             image_filename, image_upload_date = extract_upload_date(paths[si])
 
             if save_blurred_image:
-                batch_detection_info = []
                 # Create a mask filled with False values with the same shape as the original image
                 mask = np.zeros(im_orig[si].shape, dtype=bool)
 
@@ -470,33 +470,38 @@ def run(
 
                     if is_area_positive(x1, y1, x2, y2):
                         # Update the mask for the detected area to True
+                        if jm < 10:
+                            print("JM")
+                            print(image_filename)
+                            print(y1)
+                            print(y2)
+                            print(x1)
+                            print(x2)
+                            jm += 1
                         # mask[y1:y2, x1:x2] = True
 
                         if skip_evaluation:
-                            batch_detection_info.append({
-                                'image_customer_name': customer_name,
-                                'image_upload_date': image_upload_date,
-                                'image_filename': image_filename,
-                                'has_detection': True,
-                                'class_id': int(cls),
-                                'x_norm': x1,
-                                'y_norm': y1,
-                                'w_norm': x2,
-                                'h_norm': y2,
-                                'image_width': image_width,
-                                'image_height': image_height,
-                                'run_id': run_id,
-                                'conf_score': conf
-                            })
+                            # The session will be automatically closed at the end of this block
+                            with db_config.managed_session() as session:
+                                # Create an instance of DetectionInformation
+                                detection_info = DetectionInformation(image_customer_name=customer_name,
+                                                                      image_upload_date=image_upload_date,
+                                                                      image_filename=image_filename,
+                                                                      has_detection=True,
+                                                                      class_id=int(cls),
+                                                                      x_norm=x1,
+                                                                      y_norm=y1,
+                                                                      w_norm=x2,
+                                                                      h_norm=y2,
+                                                                      image_width=image_width,
+                                                                      image_height=image_height,
+                                                                      run_id=run_id,
+                                                                      conf_score=conf)
+
+                                # Add the instance to the session
+                                session.add(detection_info)
                     else:
                         LOGGER.debug('Area to blur is 0.')
-
-                # Batch insertions to the database
-                if skip_evaluation:
-                    with db_config.managed_session() as session:
-                        # Bulk insertion for DetectionInformation
-                        if batch_detection_info:
-                            session.bulk_insert_mappings(DetectionInformation, batch_detection_info)
 
                 folder_path = os.path.dirname(save_path)
                 if not os.path.exists(folder_path):
@@ -507,6 +512,8 @@ def run(
 
                 # if not cv2.imwrite(save_path, blurred_image):
                 #     raise Exception(f'Could not write image {os.path.basename(save_path)}')
+                if not cv2.imwrite(save_path, im_orig[si]):
+                    raise Exception(f'Could not write image {os.path.basename(save_path)}')
 
             # Batch insertions to the database
             if skip_evaluation:
