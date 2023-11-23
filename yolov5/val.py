@@ -505,17 +505,17 @@ def run(
                 # Apply Gaussian blur to the original image only where the mask values are True
                 blurred_image = np.where(mask, cv2.GaussianBlur(im_orig[si], (135, 135), 0), im_orig[si])
 
-                if not cv2.imwrite(save_path, blurred_image):
-                    raise Exception(f'Could not write image {os.path.basename(save_path)}')
+                # if not cv2.imwrite(save_path, blurred_image):
+                #     raise Exception(f'Could not write image {os.path.basename(save_path)}')
 
             # Batch insertions to the database
             if skip_evaluation:
-                with db_config.managed_session() as session:
-                    image_processing_status = ImageProcessingStatus(image_filename=image_filename,
-                                                                    image_upload_date=image_upload_date,
-                                                                    image_customer_name=customer_name,
-                                                                    processing_status='processed')
+                image_processing_status = ImageProcessingStatus(image_filename=image_filename,
+                                                                image_upload_date=image_upload_date,
+                                                                image_customer_name=customer_name,
+                                                                processing_status='processed')
 
+                with db_config.managed_session() as session:
                     # Merge the instance into the session (updates if already exists)
                     session.merge(image_processing_status)
 
