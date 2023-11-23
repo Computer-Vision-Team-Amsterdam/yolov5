@@ -470,36 +470,28 @@ def run(
 
                     if is_area_positive(x1, y1, x2, y2):
                         # Update the mask for the detected area to True
-                        if jm < 10:
-                            print("JM")
-                            print(image_filename)
-                            print(y1)
-                            print(y2)
-                            print(x1)
-                            print(x2)
-                            jm += 1
-                        # mask[y1:y2, x1:x2] = True
+                        mask[y1:y2, x1:x2] = True
 
-                        if skip_evaluation:
-                            # The session will be automatically closed at the end of this block
-                            with db_config.managed_session() as session:
-                                # Create an instance of DetectionInformation
-                                detection_info = DetectionInformation(image_customer_name=customer_name,
-                                                                      image_upload_date=image_upload_date,
-                                                                      image_filename=image_filename,
-                                                                      has_detection=True,
-                                                                      class_id=int(cls),
-                                                                      x_norm=x1,
-                                                                      y_norm=y1,
-                                                                      w_norm=x2,
-                                                                      h_norm=y2,
-                                                                      image_width=image_width,
-                                                                      image_height=image_height,
-                                                                      run_id=run_id,
-                                                                      conf_score=conf)
-
-                                # Add the instance to the session
-                                session.add(detection_info)
+                        # if skip_evaluation:
+                        #     # The session will be automatically closed at the end of this block
+                        #     with db_config.managed_session() as session:
+                        #         # Create an instance of DetectionInformation
+                        #         detection_info = DetectionInformation(image_customer_name=customer_name,
+                        #                                               image_upload_date=image_upload_date,
+                        #                                               image_filename=image_filename,
+                        #                                               has_detection=True,
+                        #                                               class_id=int(cls),
+                        #                                               x_norm=x1,
+                        #                                               y_norm=y1,
+                        #                                               w_norm=x2,
+                        #                                               h_norm=y2,
+                        #                                               image_width=image_width,
+                        #                                               image_height=image_height,
+                        #                                               run_id=run_id,
+                        #                                               conf_score=conf)
+                        #
+                        #         # Add the instance to the session
+                        #         session.add(detection_info)
                     else:
                         LOGGER.debug('Area to blur is 0.')
 
@@ -507,12 +499,10 @@ def run(
                 if not os.path.exists(folder_path):
                     os.makedirs(folder_path)
 
-                # # Apply Gaussian blur to the original image only where the mask values are True
-                # blurred_image = np.where(mask, cv2.GaussianBlur(im_orig[si], (135, 135), 0), im_orig[si])
+                # Apply Gaussian blur to the original image only where the mask values are True
+                blurred_image = np.where(mask, cv2.blur(im_orig[si], (20, 20)), im_orig[si])
 
-                # if not cv2.imwrite(save_path, blurred_image):
-                #     raise Exception(f'Could not write image {os.path.basename(save_path)}')
-                if not cv2.imwrite(save_path, im_orig[si]):
+                if not cv2.imwrite(save_path, blurred_image):
                     raise Exception(f'Could not write image {os.path.basename(save_path)}')
 
             # Batch insertions to the database
