@@ -470,7 +470,7 @@ def run(
 
                     if is_area_positive(x1, y1, x2, y2):
                         # Update the mask for the detected area to True
-                        mask[y1:y2, x1:x2] = True
+                        # mask[y1:y2, x1:x2] = True
 
                         if skip_evaluation:
                             batch_detection_info.append({
@@ -502,8 +502,8 @@ def run(
                 if not os.path.exists(folder_path):
                     os.makedirs(folder_path)
 
-                # Apply Gaussian blur to the original image only where the mask values are True
-                blurred_image = np.where(mask, cv2.GaussianBlur(im_orig[si], (135, 135), 0), im_orig[si])
+                # # Apply Gaussian blur to the original image only where the mask values are True
+                # blurred_image = np.where(mask, cv2.GaussianBlur(im_orig[si], (135, 135), 0), im_orig[si])
 
                 # if not cv2.imwrite(save_path, blurred_image):
                 #     raise Exception(f'Could not write image {os.path.basename(save_path)}')
