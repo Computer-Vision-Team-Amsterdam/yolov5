@@ -503,7 +503,7 @@ def run(
                                 im_orig, si, skip_evaluation, customer_name, image_upload_date, image_filename,
                                 image_width, image_height, run_id
                             )
-                            for xyxy, conf, cls in pred_clone.tolist()
+                            for *xyxy, conf, cls in pred_clone.tolist()
                         ]
                     )
 
