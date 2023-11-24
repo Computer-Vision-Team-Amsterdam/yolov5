@@ -460,7 +460,7 @@ def run(
 
             if save_blurred_image:
                 # Create a mask filled with False values with the same shape as the original image
-                mask = np.zeros(im_orig[si].shape, dtype=bool)
+                # mask = np.zeros(im_orig[si].shape, dtype=bool)
 
                 pred_clone[:, :4] = scale_boxes(im[si].shape[1:], pred_clone[:, :4], shape, shapes[si][1])
 
@@ -470,7 +470,9 @@ def run(
 
                     if is_area_positive(x1, y1, x2, y2):
                         # Update the mask for the detected area to True
-                        mask[y1:y2, x1:x2] = True
+                        area_to_blur = im_orig[si][y1:y2, x1:x2]
+                        blurred = cv2.blur(area_to_blur, (20, 20))
+                        im_orig[si][y1:y2, x1:x2] = blurred
 
                         # if skip_evaluation:
                         #     # The session will be automatically closed at the end of this block
@@ -499,10 +501,10 @@ def run(
                 if not os.path.exists(folder_path):
                     os.makedirs(folder_path)
 
-                # Apply Gaussian blur to the original image only where the mask values are True
-                blurred_image = np.where(mask, cv2.blur(im_orig[si], (20, 20)), im_orig[si])
+                # # Apply Gaussian blur to the original image only where the mask values are True
+                # blurred_image = np.where(mask, cv2.blur(im_orig[si], (20, 20)), im_orig[si])
 
-                if not cv2.imwrite(save_path, blurred_image):
+                if not cv2.imwrite(save_path, im_orig[si]):
                     raise Exception(f'Could not write image {os.path.basename(save_path)}')
 
             # Batch insertions to the database
