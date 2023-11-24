@@ -24,6 +24,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from multiprocessing import Pool
 
 import numpy as np
 import torch
@@ -156,6 +157,36 @@ def process_batch(detections, labels, iouv):
                 matches = matches[np.unique(matches[:, 0], return_index=True)[1]]
             correct[matches[:, 1].astype(int), i] = True
     return torch.tensor(correct, dtype=torch.bool, device=iouv.device)
+
+
+# Function to process bounding boxes and apply blurring
+def process_bounding_boxes(box_info, im_orig, si, skip_evaluation, customer_name, image_upload_date, image_filename,
+                           image_width, image_height, run_id):
+    x1, y1, x2, y2, conf, cls = box_info
+
+    if is_area_positive(x1, y1, x2, y2):
+        area_to_blur = im_orig[si][y1:y2, x1:x2]
+        blurred = cv2.blur(area_to_blur, (25, 25))
+        im_orig[si][y1:y2, x1:x2] = blurred
+
+        if skip_evaluation:
+            batch_detection_info = {
+                'image_customer_name': customer_name,
+                'image_upload_date': image_upload_date,
+                'image_filename': image_filename,
+                'has_detection': True,
+                'class_id': int(cls),
+                'x_norm': x1,
+                'y_norm': y1,
+                'w_norm': x2,
+                'h_norm': y2,
+                'image_width': image_width,
+                'image_height': image_height,
+                'run_id': run_id,
+                'conf_score': conf
+            }
+            return im_orig[si], [batch_detection_info]
+    return im_orig[si], []
 
 
 @exception_handler
@@ -461,54 +492,26 @@ def run(
 
             if save_blurred_image:
                 pred_clone[:, :4] = scale_boxes(im[si].shape[1:], pred_clone[:, :4], shape, shapes[si][1])
-                for *xyxy, conf, cls in pred_clone.tolist():
-                    x1, y1 = int(xyxy[0]), int(xyxy[1])
-                    x2, y2 = int(xyxy[2]), int(xyxy[3])
 
-                    if is_area_positive(x1, y1, x2, y2):
-                        # The following blurring operation incurs computational overhead during the inference process.
-                        # It applies a blur effect to a specific region within the original image.
-                        area_to_blur = im_orig[si][y1:y2, x1:x2]
-                        blurred = cv2.blur(area_to_blur, (25, 25))
-                        im_orig[si][y1:y2, x1:x2] = blurred
+                # Process bounding boxes using multiprocessing
+                with Pool() as pool:
+                    processed_results = pool.starmap(
+                        process_bounding_boxes,
+                        [
+                            (
+                                (int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3]), conf, cls),
+                                im_orig, si, skip_evaluation, customer_name, image_upload_date, image_filename,
+                                image_width, image_height, run_id
+                            )
+                            for xyxy, conf, cls in pred_clone.tolist()
+                        ]
+                    )
 
-                        # The session will be automatically closed at the end of this block
-                        with db_config.managed_session() as session:
-                            # Create an instance of DetectionInformation
-                            detection_info = DetectionInformation(image_customer_name=customer_name,
-                                                                  image_upload_date=image_upload_date,
-                                                                  image_filename=image_filename,
-                                                                  has_detection=True,
-                                                                  class_id=int(cls),
-                                                                  x_norm=x1,
-                                                                  y_norm=y1,
-                                                                  w_norm=x2,
-                                                                  h_norm=y2,
-                                                                  image_width=image_width,
-                                                                  image_height=image_height,
-                                                                  run_id=run_id,
-                                                                  conf_score=conf)
+                # Extract im_orig[si] and batch_detection_info after multiprocessing
+                im_orig[si], batch_detection_info = zip(*processed_results)
 
-                            # Add the instance to the session
-                            session.add(detection_info)
-                        
-                        # if skip_evaluation:
-                        #     # The session will be automatically closed at the end of this block
-                        #     batch_detection_info.append({
-                        #         'image_customer_name': customer_name,
-                        #         'image_upload_date': image_upload_date,
-                        #         'image_filename': image_filename,
-                        #         'has_detection': True,
-                        #         'class_id': int(cls),
-                        #         'x_norm': x1,
-                        #         'y_norm': y1,
-                        #         'w_norm': x2,
-                        #         'h_norm': y2,
-                        #         'image_width': image_width,
-                        #         'image_height': image_height,
-                        #         'run_id': run_id,
-                        #         'conf_score': conf
-                        #     })
+                # Combine all batch detection info
+                batch_detection_info = [info for sublist in batch_detection_info for info in sublist]
 
                 folder_path = os.path.dirname(save_path)
                 if not os.path.exists(folder_path):
@@ -519,10 +522,10 @@ def run(
 
             # Batch insertions to the database
             if skip_evaluation:
-                # with db_config.managed_session() as session:
-                #     # Bulk insertion for DetectionInformation
-                #     if batch_detection_info:
-                #         session.bulk_insert_mappings(DetectionInformation, batch_detection_info)
+                with db_config.managed_session() as session:
+                    # Bulk insertion for DetectionInformation
+                    if batch_detection_info:
+                        session.bulk_insert_mappings(DetectionInformation, batch_detection_info)
 
                 image_processing_status = ImageProcessingStatus(image_filename=image_filename,
                                                                 image_upload_date=image_upload_date,
