@@ -488,8 +488,6 @@ def run(
                                 'run_id': run_id,
                                 'conf_score': conf
                             })
-                    else:
-                        LOGGER.debug('Area to blur is 0.')
 
                 folder_path = os.path.dirname(save_path)
                 if not os.path.exists(folder_path):
