@@ -466,7 +466,8 @@ def run(
                     x2, y2 = int(xyxy[2]), int(xyxy[3])
 
                     if is_area_positive(x1, y1, x2, y2):
-                        # Update the mask for the detected area to True
+                        # The following blurring operation incurs computational overhead during the inference process.
+                        # It applies a blur effect to a specific region within the original image.
                         area_to_blur = im_orig[si][y1:y2, x1:x2]
                         blurred = cv2.blur(area_to_blur, (30, 30))
                         im_orig[si][y1:y2, x1:x2] = blurred
