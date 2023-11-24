@@ -472,23 +472,43 @@ def run(
                         blurred = cv2.blur(area_to_blur, (25, 25))
                         im_orig[si][y1:y2, x1:x2] = blurred
 
-                        if skip_evaluation:
-                            # The session will be automatically closed at the end of this block
-                            batch_detection_info.append({
-                                'image_customer_name': customer_name,
-                                'image_upload_date': image_upload_date,
-                                'image_filename': image_filename,
-                                'has_detection': True,
-                                'class_id': int(cls),
-                                'x_norm': x1,
-                                'y_norm': y1,
-                                'w_norm': x2,
-                                'h_norm': y2,
-                                'image_width': image_width,
-                                'image_height': image_height,
-                                'run_id': run_id,
-                                'conf_score': conf
-                            })
+                        # The session will be automatically closed at the end of this block
+                        with db_config.managed_session() as session:
+                            # Create an instance of DetectionInformation
+                            detection_info = DetectionInformation(image_customer_name=customer_name,
+                                                                  image_upload_date=image_upload_date,
+                                                                  image_filename=image_filename,
+                                                                  has_detection=True,
+                                                                  class_id=int(cls),
+                                                                  x_norm=x1,
+                                                                  y_norm=y1,
+                                                                  w_norm=x2,
+                                                                  h_norm=y2,
+                                                                  image_width=image_width,
+                                                                  image_height=image_height,
+                                                                  run_id=run_id,
+                                                                  conf_score=conf)
+
+                            # Add the instance to the session
+                            session.add(detection_info)
+                        
+                        # if skip_evaluation:
+                        #     # The session will be automatically closed at the end of this block
+                        #     batch_detection_info.append({
+                        #         'image_customer_name': customer_name,
+                        #         'image_upload_date': image_upload_date,
+                        #         'image_filename': image_filename,
+                        #         'has_detection': True,
+                        #         'class_id': int(cls),
+                        #         'x_norm': x1,
+                        #         'y_norm': y1,
+                        #         'w_norm': x2,
+                        #         'h_norm': y2,
+                        #         'image_width': image_width,
+                        #         'image_height': image_height,
+                        #         'run_id': run_id,
+                        #         'conf_score': conf
+                        #     })
 
                 folder_path = os.path.dirname(save_path)
                 if not os.path.exists(folder_path):
@@ -499,10 +519,10 @@ def run(
 
             # Batch insertions to the database
             if skip_evaluation:
-                with db_config.managed_session() as session:
-                    # Bulk insertion for DetectionInformation
-                    if batch_detection_info:
-                        session.bulk_insert_mappings(DetectionInformation, batch_detection_info)
+                # with db_config.managed_session() as session:
+                #     # Bulk insertion for DetectionInformation
+                #     if batch_detection_info:
+                #         session.bulk_insert_mappings(DetectionInformation, batch_detection_info)
 
                 image_processing_status = ImageProcessingStatus(image_filename=image_filename,
                                                                 image_upload_date=image_upload_date,
