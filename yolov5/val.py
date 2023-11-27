@@ -467,7 +467,7 @@ def run(
                         # The following blurring operation incurs computational overhead during the inference process.
                         # It applies a blur effect to a specific region within the original image.
                         area_to_blur = im_orig[si][y1:y2, x1:x2]
-                        blurred = cv2.blur(area_to_blur, (25, 25))
+                        blurred = cv2.blur(area_to_blur, (50, 50))
                         im_orig[si][y1:y2, x1:x2] = blurred
 
                         if skip_evaluation:
