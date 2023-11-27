@@ -630,7 +630,7 @@ def run(
         try:
             trained_yolo_model = os.path.split(weights)[-1]
         except Exception as e:
-            LOGGER.info(f"Error while getting trained_yolo_model name: {str(e)}")
+            LOGGER.error(f"Error while getting trained_yolo_model name: {str(e)}")
             trained_yolo_model = ""
 
         # Perform database operations using the 'session'
