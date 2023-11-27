@@ -199,8 +199,6 @@ def run(
         db_name='',
         start_time='',
         no_inverted_colors=False):
-    jm = 0
-
     # Initialize/load model and set device
     training = model is not None
     if training:  # called by train.py
