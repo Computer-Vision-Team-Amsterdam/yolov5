@@ -35,7 +35,8 @@ class DBConfigSQLAlchemy:
 
         # Authenticate using Managed Identity (MSI)
         try:
-            command = ["az", "login", "--identity", "--username", client_id]
+            #command = ["az", "login", "--identity", "--username", client_id]
+            command = ["az", "login"]
             subprocess.check_call(command)
         except subprocess.CalledProcessError as e:
             LOGGER.error("Error during 'az login --identity': {e}")
