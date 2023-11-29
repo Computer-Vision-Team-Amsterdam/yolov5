@@ -73,7 +73,7 @@ class DBConfigSQLAlchemy:
             self.session_maker = sessionmaker(bind=self.engine, autoflush=False, autocommit=False)
             
             # Check the connect_args in the engine's URL
-            args, kwargs = self.engine.dialect.create_connect_args(self.engine.url)
+            args, kwargs = self.engine.dialect.create_connect_args(self.engine)
             print(f'Timeout: {args}, {kwargs}')
 
             LOGGER.info(f"Successfully created database sessionmaker.")
