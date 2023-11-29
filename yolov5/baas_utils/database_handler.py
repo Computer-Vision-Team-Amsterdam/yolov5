@@ -56,7 +56,8 @@ class DBConfigSQLAlchemy:
 
     def _get_db_connection_string(self):
         self._get_db_access_token()
-        db_url = f"postgresql://{self.db_username}:{self.access_token}@{self.db_hostname}/{self.db_name}"
+        #db_url = f"postgresql://{self.db_username}:{self.access_token}@{self.db_hostname}/{self.db_name}"
+        db_url = f"postgresql+psycopg2://{self.db_username}:{self.access_token}@{self.db_hostname}/{self.db_name}"
         return db_url
 
     def _get_session(self):
@@ -73,7 +74,7 @@ class DBConfigSQLAlchemy:
             self.session_maker = sessionmaker(bind=self.engine, autoflush=False, autocommit=False)
             
             # Check the connect_args in the engine's URL
-            args, kwargs = self.engine.dialect.create_connect_args(self.engine)
+            args, kwargs = self.engine.dialect.create_connect_args(self.engine.url)
             print(f'Timeout: {args}, {kwargs}')
 
             LOGGER.info(f"Successfully created database sessionmaker.")
