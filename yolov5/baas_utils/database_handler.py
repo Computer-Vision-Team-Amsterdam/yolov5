@@ -69,7 +69,7 @@ class DBConfigSQLAlchemy:
         try:
             # Create the engine
             db_url = self._get_db_connection_string()
-            self.engine = create_engine(db_url, connect_args={"timeout": 180})
+            self.engine = create_engine(db_url, connect_args={"timeout": 2})
             self.session_maker = sessionmaker(bind=self.engine, autoflush=False, autocommit=False)
 
             LOGGER.info(f"Successfully created database sessionmaker.")
