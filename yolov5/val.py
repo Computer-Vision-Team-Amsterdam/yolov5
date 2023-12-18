@@ -433,6 +433,14 @@ def run(
                             confusion_matrix.process_batch(predn, labelsn)
                 stats.append((correct, pred[:, 4], pred[:, 5], labels[:, 0]))  # (correct, conf, pcls, tcls)
 
+            # Print results
+            text = {
+                f"{names[int(c)]}{'s' * ((predn[:, 5] == c).sum() > 1)}": (predn[:, 5] == c).sum()
+                for c in predn[:, 5].unique()
+            }
+            text['image_path'] = f'{path.stem}'
+            LOGGER.info(f'Detections per image: {text}')
+
             # Save/log
             if save_txt:
                 if tagged_data:
@@ -445,11 +453,12 @@ def run(
                 else:
                     save_one_txt(predn, save_conf, shape, file=save_dir / 'labels' / f'{path.stem}.txt')
                     # Print results
-                    text = ''
-                    for c in predn[:, 5].unique():
-                        n = (predn[:, 5] == c).sum()  # detections per class
-                        text += f"{n} {names[int(c)]}{'s' * (n > 1)}, "  # add to string
-                    LOGGER.info(f'{path.stem}: {text}')
+                    # text = ''
+                    # for c in predn[:, 5].unique():
+                    #     n = (predn[:, 5] == c).sum()  # detections per class
+                    #     text += f"{n} {names[int(c)]}{'s' * (n > 1)}, "  # add to string
+                    # LOGGER.info(f'{path.stem}: {text}')
+
             if save_json:
                 save_one_json(predn, jdict, path, class_map)  # append to COCO-JSON dictionary
             callbacks.run('on_val_image_end', pred, predn, path, names, im[si])
