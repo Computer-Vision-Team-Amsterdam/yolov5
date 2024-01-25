@@ -473,6 +473,46 @@ def extract_filename_with_subfolder(path):
     return filename_subfolder
 
 
+def get_path_and_images_to_process(path, processed_images, input_dir, prefix):
+    try:
+        f = []  # image files
+        for p in path if isinstance(path, list) else [path]:
+            p = Path(p)  # os-agnostic
+            if p.is_dir():  # dir
+                f += glob.glob(str(p / '**' / '*.*'), recursive=True)
+                # f = list(p.rglob('*.*'))  # pathlib
+            elif p.is_file():  # file
+                with open(p) as t:
+                    # Read contents of txt file
+                    t = t.read().strip().splitlines()
+                    parent = str(p.parent) + os.sep
+                    f += [x.replace('./', parent, 1) if x.startswith('./') else input_dir + x
+                          for x in t]  # to global path
+                    # f += [p.parent / x.lstrip(os.sep) for x in t]  # to global path (pathlib)
+
+            else:
+                raise FileNotFoundError(f'{prefix}{p} does not exist')
+
+        # images_to_process are all images that the application found in the storage account (paths in the txt file)
+        images_to_process = sorted(x.replace('/', os.sep) for x in f if x.split('.')[-1].lower() in IMG_FORMATS)
+
+        # Create a list of images to be processed that are not in the list of processed images
+        # processed_images are all the images in the database that have the label "inprogress" or "processed"
+        im_files = [
+            image for image in images_to_process if extract_filename_with_subfolder(image) not in processed_images]
+
+        if not im_files:
+            raise Exception(f'{prefix} No (new) images found')
+        return p, im_files
+    except Exception as e:
+        raise Exception(f'{prefix}Error loading data from {path}: {e}\n{HELP_URL}') from e
+
+
+def images_to_process_exist(path, processed_images, input_dir, prefix):
+    _, images_to_process = get_path_and_images_to_process(path, processed_images, input_dir, prefix)
+    return len(images_to_process) > 0
+
+
 class LoadImagesAndLabels(Dataset):
     # YOLOv5 train_loader/val_loader, loads images and labels for training and validation
     cache_version = 0.6  # dataset labels *.cache version
@@ -504,39 +544,39 @@ class LoadImagesAndLabels(Dataset):
         self.stride = stride
         self.path = path
         self.albumentations = Albumentations(size=img_size) if augment else None
-
-        try:
-            f = []  # image files
-            for p in path if isinstance(path, list) else [path]:
-                p = Path(p)  # os-agnostic
-                if p.is_dir():  # dir
-                    f += glob.glob(str(p / '**' / '*.*'), recursive=True)
-                    # f = list(p.rglob('*.*'))  # pathlib
-                elif p.is_file():  # file
-                    with open(p) as t:
-                        # Read contents of txt file
-                        t = t.read().strip().splitlines()
-                        parent = str(p.parent) + os.sep
-                        f += [x.replace('./', parent, 1) if x.startswith('./') else input_dir + x
-                              for x in t]  # to global path
-                        # f += [p.parent / x.lstrip(os.sep) for x in t]  # to global path (pathlib)
-
-                else:
-                    raise FileNotFoundError(f'{prefix}{p} does not exist')
-
-            # images_to_process are all images that the application found in the storage account (paths in the txt file)
-            images_to_process = sorted(x.replace('/', os.sep) for x in f if x.split('.')[-1].lower() in IMG_FORMATS)
-
-            # Create a list of images to be processed that are not in the list of processed images
-            # processed_images are all the images in the database that have the label "inprogress" or "processed"
-            self.im_files = [
-                image for image in images_to_process if extract_filename_with_subfolder(image) not in processed_images]
-
-            if not self.im_files:
-                LOGGER.warning(f'{prefix} No (new) images found')
-
-        except Exception as e:
-            raise Exception(f'{prefix}Error loading data from {path}: {e}\n{HELP_URL}') from e
+        p, self.im_files = get_path_and_images_to_process(self.path, processed_images, input_dir, prefix)
+        # try:
+        #     f = []  # image files
+        #     for p in path if isinstance(path, list) else [path]:
+        #         p = Path(p)  # os-agnostic
+        #         if p.is_dir():  # dir
+        #             f += glob.glob(str(p / '**' / '*.*'), recursive=True)
+        #             # f = list(p.rglob('*.*'))  # pathlib
+        #         elif p.is_file():  # file
+        #             with open(p) as t:
+        #                 # Read contents of txt file
+        #                 t = t.read().strip().splitlines()
+        #                 parent = str(p.parent) + os.sep
+        #                 f += [x.replace('./', parent, 1) if x.startswith('./') else input_dir + x
+        #                       for x in t]  # to global path
+        #                 # f += [p.parent / x.lstrip(os.sep) for x in t]  # to global path (pathlib)
+        #
+        #         else:
+        #             raise FileNotFoundError(f'{prefix}{p} does not exist')
+        #
+        #     # images_to_process are all images that the application found in the storage account (paths in the txt file)
+        #     images_to_process = sorted(x.replace('/', os.sep) for x in f if x.split('.')[-1].lower() in IMG_FORMATS)
+        #
+        #     # Create a list of images to be processed that are not in the list of processed images
+        #     # processed_images are all the images in the database that have the label "inprogress" or "processed"
+        #     self.im_files = [
+        #         image for image in images_to_process if extract_filename_with_subfolder(image) not in processed_images]
+        #
+        #     if not self.im_files:
+        #         LOGGER.warning(f'{prefix} No (new) images found')
+        #
+        # except Exception as e:
+        #     raise Exception(f'{prefix}Error loading data from {path}: {e}\n{HELP_URL}') from e
 
         # Check cache
         self.label_files = img2label_paths(self.im_files)  # labels
@@ -1073,7 +1113,7 @@ def verify_image_label(args):
         nc += 1
         msg = f'{prefix}WARNING ⚠️ {im_file}: ignoring corrupt image: {e}'
         LOGGER.warning(msg)
-        return [None, None, None, None, nm, nf, ne, nc, msg]    # Returning None for the corrupt image
+        return [None, None, None, None, nm, nf, ne, nc, msg]  # Returning None for the corrupt image
 
     try:
         # verify labels

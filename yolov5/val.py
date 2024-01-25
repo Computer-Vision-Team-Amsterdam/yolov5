@@ -43,7 +43,7 @@ from yolov5.baas_utils.error_handling import exception_handler
 
 from yolov5.models.common import DetectMultiBackend
 from yolov5.utils.callbacks import Callbacks
-from yolov5.utils.dataloaders import create_dataloader
+from yolov5.utils.dataloaders import create_dataloader, images_to_process_exist
 from yolov5.utils.general import (
     LOGGER,
     TQDM_BAR_FORMAT,
@@ -301,18 +301,21 @@ def run(
         else:
             processed_images = []
 
-        image_files, dataloader, _ = create_dataloader(data[task],
-                                                       processed_images,
-                                                       input_dir,
-                                                       imgsz,
-                                                       batch_size,
-                                                       stride,
-                                                       single_cls,
-                                                       pad=pad,
-                                                       rect=rect,
-                                                       workers=workers,
-                                                       prefix=colorstr(f'{task}: '))
+        if images_to_process_exist(data[task], processed_images, input_dir, prefix=colorstr(f'{task}: ')):
 
+            image_files, dataloader, _ = create_dataloader(data[task],
+                                                           processed_images,
+                                                           input_dir,
+                                                           imgsz,
+                                                           batch_size,
+                                                           stride,
+                                                           single_cls,
+                                                           pad=pad,
+                                                           rect=rect,
+                                                           workers=workers,
+                                                           prefix=colorstr(f'{task}: '))
+        else:
+            return
         if skip_evaluation:
             # Perform database operations using the 'session'
             # The session will be automatically closed at the end of this block
