@@ -474,6 +474,22 @@ def extract_filename_with_subfolder(path):
 
 
 def get_path_and_images_to_process(path, processed_images, input_dir, prefix):
+    """
+    Get path and images to process in this yolo run.
+
+    Parameters:
+    - path (str or list): Path or list of paths to files or directories containing images.
+    - processed_images (list): List of processed images.
+    - input_dir (str): Input directory for images.
+    - prefix (str): Type of task: train, val, test or study
+
+    Returns:
+    - tuple: A tuple containing the path and a list of images to be processed.
+
+    Raises:
+    - FileNotFoundError: If the specified file or directory does not exist.
+    - Exception: If there is an error loading data from the specified path.
+    """
     try:
         f = []  # image files
         for p in path if isinstance(path, list) else [path]:
@@ -502,13 +518,25 @@ def get_path_and_images_to_process(path, processed_images, input_dir, prefix):
             image for image in images_to_process if extract_filename_with_subfolder(image) not in processed_images]
 
         if not im_files:
-            raise Exception(f'{prefix} No (new) images found')
+            LOGGER.warning(f'{prefix} No (new) images found')
         return p, im_files
     except Exception as e:
         raise Exception(f'{prefix}Error loading data from {path}: {e}\n{HELP_URL}') from e
 
 
 def images_to_process_exist(path, processed_images, input_dir, prefix):
+    """
+       Check if there are images to process, i.e. images that are not in the database yet.
+
+       Parameters:
+       - path (str or list): Path or list of paths to files or directories containing images.
+       - processed_images (list): List of processed images.
+       - input_dir (str): Input directory for images.
+       - prefix (str): Type of task: train, val, test or study
+
+       Returns:
+       - bool: True if there are images to process, False otherwise.
+    """
     _, images_to_process = get_path_and_images_to_process(path, processed_images, input_dir, prefix)
     return len(images_to_process) > 0
 
