@@ -1,8 +1,8 @@
 import os
 
-from .database_handler import DBConfigSQLAlchemy
-from .database_tables import BatchRunInformation, ImageProcessingStatus, DetectionInformation
-from .date_utils import get_current_time
+from cvtoolkit.database.database_handler import DBConfigSQLAlchemy
+from yolov5.baas_utils.database_tables import BatchRunInformation, ImageProcessingStatus, DetectionInformation
+from yolov5.baas_utils.date_utils import get_current_time
 from sqlalchemy import and_
 
 from yolov5.utils.general import LOGGER

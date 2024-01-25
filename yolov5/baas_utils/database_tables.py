@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, Boolean, DateTime, Integer, Float
-from .database_handler import DBConfigSQLAlchemy
+from cvtoolkit.database.database_handler import DBConfigSQLAlchemy
 
 
 class ImageProcessingStatus(DBConfigSQLAlchemy.Base):

@@ -36,7 +36,7 @@ if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))  # add ROOT to PATH
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 
-from yolov5.baas_utils.database_handler import DBConfigSQLAlchemy
+from cvtoolkit.database.database_handler import DBConfigSQLAlchemy
 from yolov5.baas_utils.database_tables import DetectionInformation, ImageProcessingStatus, BatchRunInformation
 from yolov5.baas_utils.date_utils import extract_upload_date, get_current_time
 from yolov5.baas_utils.error_handling import exception_handler
