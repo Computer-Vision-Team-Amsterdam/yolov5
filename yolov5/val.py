@@ -315,7 +315,7 @@ def run(
                                                            workers=workers,
                                                            prefix=colorstr(f'{task}: '))
         else:
-            # Skip the yolo run since there are no images for inference.
+            LOGGER.warning("Skipping the yolo run since there are no images for inference.")
             return
         if skip_evaluation:
             # Perform database operations using the 'session'
