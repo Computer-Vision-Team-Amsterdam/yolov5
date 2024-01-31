@@ -146,8 +146,8 @@ torch = ">=1.7.0"
 [package.source]
 type = "git"
 url = "https://github.com/Computer-Vision-Team-Amsterdam/CVToolkit.git"
-reference = "v1.0.0"
-resolved_reference = "bacbeeef4bcbf9f92338dbd55266d2ad8827d0a7"
+reference = "feature/BCV-718"
+resolved_reference = "bda5bc797599e1566a384e507bc132beb76130ff"
 
 [[package]]
 name = "cycler"
@@ -1079,7 +1079,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-ena
 [metadata]
 lock-version = "1.1"
 python-versions = "~3.8"
-content-hash = "1e5e9f529a5e547fc815d1e7a733aa72b64e5e7336d789aed464ad46b718ac76"
+content-hash = "bc0754e674f87fafae69202c0475de6a892cf5462985587b4555692d0b4b8df3"
 
 [metadata.files]
 absl-py = []
