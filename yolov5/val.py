@@ -65,7 +65,6 @@ from yolov5.utils.general import (
 from yolov5.utils.metrics import ConfusionMatrix, TaggedConfusionMatrix, ap_per_class, box_iou
 from yolov5.utils.plots import output_to_target, plot_images, plot_val_study
 from yolov5.utils.torch_utils import select_device, smart_inference_mode
-from torchvision.utils import save_image
 
 # Use the following repo for local run https://github.com/Computer-Vision-Team-Amsterdam/yolov5-local-docker
 LOCAL_RUN = False
@@ -198,6 +197,7 @@ def run(
         db_username='',
         db_hostname='',
         db_name='',
+        client_id='',
         start_time='',
         no_inverted_colors=False):
     # Initialize/load model and set device
@@ -246,11 +246,11 @@ def run(
 
     if skip_evaluation:
         # Validate if database credentials are provided
-        if not db_username or not db_name or not db_hostname:
+        if not db_username or not db_name or not db_hostname or not client_id:
             raise ValueError('Please provide database credentials.')
 
         # Create a DBConfigSQLAlchemy object
-        db_config = DBConfigSQLAlchemy(db_username, db_hostname, db_name)
+        db_config = DBConfigSQLAlchemy(db_username, db_hostname, db_name, client_id)
         # Create the database connection
         db_config.create_connection()
 
