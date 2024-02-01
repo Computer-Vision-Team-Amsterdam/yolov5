@@ -1,7 +1,7 @@
 import os
 
 from cvtoolkit.database.database_handler import DBConfigSQLAlchemy
-from yolov5.baas_utils.database_tables import BatchRunInformation, ImageProcessingStatus, DetectionInformation
+from cvtoolkit.database.baas_tables import BatchRunInformation, ImageProcessingStatus, DetectionInformation
 from yolov5.baas_utils.date_utils import get_current_time
 from sqlalchemy import and_
 
@@ -19,6 +19,7 @@ def exception_handler(func):
             db_username = kwargs.get('db_username', '')
             db_name = kwargs.get('db_name', '')
             db_hostname = kwargs.get('db_hostname', '')
+            client_id = kwargs.get('client_id', '')
             run_id = kwargs.get('run_id', 'default_run_id')
             trained_yolo_model = kwargs.get('weights', 'default')
             start_time = kwargs.get('start_time', '')
@@ -37,7 +38,7 @@ def exception_handler(func):
                     raise ValueError('Please provide database credentials.')
 
                 # Create a DBConfigSQLAlchemy object
-                db_config = DBConfigSQLAlchemy(db_username, db_hostname, db_name)
+                db_config = DBConfigSQLAlchemy(db_username, db_hostname, db_name, client_id)
                 # Create the database connection
                 db_config.create_connection()
 
