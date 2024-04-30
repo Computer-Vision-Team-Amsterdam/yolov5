@@ -11,7 +11,7 @@ authors = [
 
 [tool.poetry.dependencies]
 python = "~3.8"
-cvtoolkit = { git = "https://github.com/Computer-Vision-Team-Amsterdam/CVToolkit.git",  tag = "v1.0.2" }
+cvtoolkit = { git = "https://github.com/Computer-Vision-Team-Amsterdam/CVToolkit.git",  tag = "v1.0.3" }
 GitPython = {version = "^3.1.31", source = "PyPI"}
 Pillow = {version = "^9.4.0", source = "PyPI"}
 PyYAML = {version = "^6.0", source = "PyPI"}
